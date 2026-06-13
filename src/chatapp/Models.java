@@ -76,6 +76,9 @@ final class ChatMessage {
     String senderUsername;
     String senderName;
     String body;
+    String messageType;
+    String metadataJson;
+    String workflowStatus;
     Long replyToId;
     String replyPreview;
     boolean edited;
@@ -94,4 +97,21 @@ final class Attachment {
     String mimeType;
     long fileSize;
     String sharedPath;
+}
+
+final class TaskTarget {
+    final String employeeId;
+    final String displayName;
+    final String username;
+
+    TaskTarget(String employeeId, String displayName, String username) {
+        this.employeeId = employeeId;
+        this.displayName = displayName == null || displayName.isBlank() ? employeeId : displayName;
+        this.username = username;
+    }
+
+    @Override
+    public String toString() {
+        return employeeId + " - " + displayName;
+    }
 }

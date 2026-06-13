@@ -1,21 +1,38 @@
 package chatapp;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 
-final class Database {
-    private final AppConfig config;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 
-    Database(AppConfig config) {
-        this.config = config;
+public final class Database {
+    private final HikariDataSource dataSource;
+
+    public Database(AppConfig config) {
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException("Missing MySQL driver", e);
         }
+        HikariConfig hikari = new HikariConfig();
+        hikari.setJdbcUrl(config.dbUrl);
+        hikari.setUsername(config.dbUser);
+        hikari.setPassword(config.dbPassword);
+        hikari.setMaximumPoolSize(config.dbPoolMax);
+        hikari.setMinimumIdle(config.dbPoolMin);
+        hikari.setPoolName("CHAT_NOI_BO_POOL");
+        hikari.setInitializationFailTimeout(-1);
+        hikari.addDataSourceProperty("cachePrepStmts", "true");
+        hikari.addDataSourceProperty("prepStmtCacheSize", "250");
+        hikari.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
+        dataSource = new HikariDataSource(hikari);
     }
 
-    Connection getConnection() throws Exception {
-        return DriverManager.getConnection(config.dbUrl, config.dbUser, config.dbPassword);
+    public Connection getConnection() throws Exception {
+        return dataSource.getConnection();
+    }
+
+    public void close() {
+        dataSource.close();
     }
 }

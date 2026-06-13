@@ -5,7 +5,8 @@ Ung dung chat noi bo JavaFX dung chung database `quanlyluong` voi app quan ly lu
 ## Chay trong VS Code
 
 1. Mo thu muc `C:\Users\Admin\OneDrive\Desktop\CHAT_NOI_BO`.
-2. Chay cau hinh `Run CHAT_NOI_BO`.
+2. Chay cau hinh `Run CHAT_SERVER` truoc.
+3. Chay cau hinh `Run CHAT_NOI_BO` cho client.
 
 Hoac compile thu cong:
 
@@ -17,10 +18,22 @@ java --module-path ..\QUAN_LY_LUONG\javafx-sdk-26.0.1\lib --add-modules javafx.c
 Chay nhanh bang script:
 
 ```powershell
+powershell -ExecutionPolicy Bypass -File .\run-server.ps1
 powershell -ExecutionPolicy Bypass -File .\run.ps1
 ```
 
 Hoac double-click `run.bat`.
+
+## Realtime va lien ket luong
+
+- App da bo polling `Timeline`; client nhan cap nhat qua WebSocket server rieng `chatserver.ChatServerApp`.
+- Server mac dinh chay tai `ws://localhost:8787`, cau hinh trong `src\chatapp\chat.properties`.
+- Database dung HikariCP connection pool.
+- Schema chat co them bang `tasks`, `chat_polls`, `chat_poll_options`, `chat_poll_votes`, `chat_workflows`.
+- Bot sinh nhat chay trong server va gui tin len nhom cong ty khi MySQL san sang.
+- App luong se gui salary card vao chat khi luu lich su luong; nguoi dung phai nhap lai mat khau de xem chi tiet.
+- Menu tin nhan co `Chuyen thanh cong viec (Giao KPI Task)`, luu vao bang `tasks`.
+- Nut `+` co them workflow `Xin tang ca` va `Xin doi ca`; quan ly duyet trong chat se cap nhat bang `schedules`.
 
 ## Dang xuat va cai dat
 

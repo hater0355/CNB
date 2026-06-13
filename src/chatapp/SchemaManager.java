@@ -1,16 +1,18 @@
 package chatapp;
 
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
 import java.sql.Statement;
 
-final class SchemaManager {
+public final class SchemaManager {
     private final Database db;
 
-    SchemaManager(Database db) {
+    public SchemaManager(Database db) {
         this.db = db;
     }
 
-    void init() throws Exception {
+    public void init() throws Exception {
         try (Connection c = db.getConnection(); Statement st = c.createStatement()) {
             st.execute("CREATE TABLE IF NOT EXISTS chat_conversations (" +
                     "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
@@ -47,6 +49,10 @@ final class SchemaManager {
                     "deleted_at DATETIME NULL," +
                     "INDEX idx_chat_messages_conversation (conversation_id, id)," +
                     "CONSTRAINT fk_chat_messages_conversation FOREIGN KEY (conversation_id) REFERENCES chat_conversations(id) ON DELETE CASCADE)");
+            addColumnIfMissing(c, "chat_messages", "message_type", "VARCHAR(30) NOT NULL DEFAULT 'TEXT'");
+            addColumnIfMissing(c, "chat_messages", "forwarded_from_message_id", "BIGINT NULL");
+            addColumnIfMissing(c, "chat_messages", "metadata_json", "TEXT NULL");
+            addColumnIfMissing(c, "chat_messages", "workflow_status", "VARCHAR(30) NULL");
             st.execute("CREATE TABLE IF NOT EXISTS chat_attachments (" +
                     "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
                     "message_id BIGINT NOT NULL," +
@@ -63,6 +69,67 @@ final class SchemaManager {
                     "read_at DATETIME NOT NULL," +
                     "PRIMARY KEY (message_id, username)," +
                     "CONSTRAINT fk_chat_receipts_message FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE CASCADE)");
+            st.execute("CREATE TABLE IF NOT EXISTS tasks (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                    "message_id BIGINT NULL," +
+                    "employee_id VARCHAR(20) NOT NULL," +
+                    "description TEXT NOT NULL," +
+                    "deadline DATE NULL," +
+                    "status VARCHAR(30) NOT NULL DEFAULT 'OPEN'," +
+                    "created_at DATETIME NOT NULL," +
+                    "INDEX idx_tasks_employee_status (employee_id, status)," +
+                    "CONSTRAINT fk_tasks_message FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE SET NULL)");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_polls (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                    "message_id BIGINT NOT NULL," +
+                    "question TEXT NOT NULL," +
+                    "created_by VARCHAR(50) NOT NULL," +
+                    "created_at DATETIME NOT NULL," +
+                    "CONSTRAINT fk_chat_polls_message FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE CASCADE)");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_poll_options (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                    "poll_id BIGINT NOT NULL," +
+                    "option_text VARCHAR(500) NOT NULL," +
+                    "sort_order INT NOT NULL DEFAULT 0," +
+                    "CONSTRAINT fk_chat_poll_options_poll FOREIGN KEY (poll_id) REFERENCES chat_polls(id) ON DELETE CASCADE)");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_poll_votes (" +
+                    "poll_id BIGINT NOT NULL," +
+                    "option_id BIGINT NOT NULL," +
+                    "username VARCHAR(50) NOT NULL," +
+                    "voted_at DATETIME NOT NULL," +
+                    "PRIMARY KEY (poll_id, username)," +
+                    "CONSTRAINT fk_chat_poll_votes_poll FOREIGN KEY (poll_id) REFERENCES chat_polls(id) ON DELETE CASCADE," +
+                    "CONSTRAINT fk_chat_poll_votes_option FOREIGN KEY (option_id) REFERENCES chat_poll_options(id) ON DELETE CASCADE)");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_workflows (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                    "message_id BIGINT NOT NULL," +
+                    "workflow_type VARCHAR(30) NOT NULL," +
+                    "employee_id VARCHAR(20) NOT NULL," +
+                    "work_date DATE NULL," +
+                    "payload_json TEXT NULL," +
+                    "status VARCHAR(30) NOT NULL DEFAULT 'PENDING'," +
+                    "decided_by VARCHAR(50) NULL," +
+                    "decided_at DATETIME NULL," +
+                    "created_at DATETIME NOT NULL," +
+                    "INDEX idx_chat_workflows_status (status)," +
+                    "CONSTRAINT fk_chat_workflows_message FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE CASCADE)");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_bot_events (" +
+                    "event_key VARCHAR(160) PRIMARY KEY," +
+                    "created_at DATETIME NOT NULL)");
+            st.execute("INSERT IGNORE INTO users (username, password, role, company_code, full_name, email, phone) " +
+                    "VALUES ('system_bot', '', 'SYSTEM', 'SYSTEM', 'System Notification Bot', '', '')");
+        }
+    }
+
+    private static void addColumnIfMissing(Connection c, String table, String column, String definition) throws Exception {
+        DatabaseMetaData meta = c.getMetaData();
+        try (ResultSet rs = meta.getColumns(c.getCatalog(), null, table, column)) {
+            if (rs.next()) {
+                return;
+            }
+        }
+        try (Statement st = c.createStatement()) {
+            st.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
         }
     }
 }

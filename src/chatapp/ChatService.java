@@ -6,6 +6,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -31,6 +32,21 @@ final class ChatService {
             }
         }
         syncCompanyMembers(id, user.companyOwner);
+    }
+
+    long ensureDepartmentConversation(String companyOwner, String department) throws Exception {
+        if (companyOwner == null || companyOwner.isBlank() || department == null || department.isBlank()) {
+            return 0;
+        }
+        String directKey = "DEPT|" + companyOwner + "|" + department.trim();
+        long id = findConversationByDirectKey(companyOwner, directKey);
+        if (id == 0) {
+            try (Connection c = db.getConnection()) {
+                id = insertConversation(c, companyOwner, "DEPARTMENT", "Phòng " + department.trim(), directKey, companyOwner, false);
+            }
+        }
+        syncDepartmentMembers(id, companyOwner, department.trim());
+        return id;
     }
 
     List<Conversation> listConversations(CurrentUser user) throws Exception {
@@ -193,6 +209,179 @@ final class ChatService {
         return result;
     }
 
+    List<TaskTarget> listTaskTargets(CurrentUser user) throws Exception {
+        List<TaskTarget> targets = new ArrayList<>();
+        String sql = "SELECT id, name, login_username FROM employees WHERE account_username = ? AND status = 'APPROVED' ORDER BY name";
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, user.companyOwner);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    targets.add(new TaskTarget(rs.getString("id"), rs.getString("name"), rs.getString("login_username")));
+                }
+            }
+        }
+        return targets;
+    }
+
+    long createTask(CurrentUser user, long messageId, String employeeId, String description, LocalDate deadline) throws Exception {
+        if (employeeId == null || employeeId.isBlank()) {
+            throw new IllegalArgumentException("Chua chon nhan vien.");
+        }
+        if (description == null || description.isBlank()) {
+            throw new IllegalArgumentException("Noi dung cong viec khong duoc de trong.");
+        }
+        String allowedSql = "SELECT 1 FROM employees WHERE id = ? AND account_username = ? AND status = 'APPROVED'";
+        try (Connection c = db.getConnection()) {
+            try (PreparedStatement allowed = c.prepareStatement(allowedSql)) {
+                allowed.setString(1, employeeId);
+                allowed.setString(2, user.companyOwner);
+                try (ResultSet rs = allowed.executeQuery()) {
+                    if (!rs.next()) {
+                        throw new IllegalArgumentException("Nhan vien khong thuoc cong ty hoac chua duoc duyet.");
+                    }
+                }
+            }
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT INTO tasks (message_id, employee_id, description, deadline, status, created_at) VALUES (?, ?, ?, ?, 'OPEN', NOW())",
+                    Statement.RETURN_GENERATED_KEYS)) {
+                ps.setLong(1, messageId);
+                ps.setString(2, employeeId);
+                ps.setString(3, description.trim());
+                if (deadline == null) {
+                    ps.setNull(4, java.sql.Types.DATE);
+                } else {
+                    ps.setDate(4, java.sql.Date.valueOf(deadline));
+                }
+                ps.executeUpdate();
+                return generatedId(ps);
+            }
+        }
+    }
+
+    long createWorkflow(CurrentUser user, long conversationId, String workflowType, LocalDate workDate, String shift) throws Exception {
+        if (user.employeeId == null || user.employeeId.isBlank()) {
+            throw new IllegalArgumentException("Chi nhan vien moi tao duoc yeu cau workflow.");
+        }
+        if (workDate == null) {
+            throw new IllegalArgumentException("Chua chon ngay.");
+        }
+        String safeType = "SHIFT_CHANGE".equals(workflowType) ? "SHIFT_CHANGE" : "OT";
+        String safeShift = shift == null || shift.isBlank() ? ("OT".equals(safeType) ? "Tăng ca" : "Đổi ca") : shift.trim();
+        String body = ("OT".equals(safeType) ? "Xin tăng ca" : "Xin đổi ca") + " ngày " + workDate + " - " + safeShift;
+        String metadata = "{\"employeeId\":\"" + user.employeeId + "\",\"date\":\"" + workDate + "\",\"shift\":\"" + safeShift + "\"}";
+        try (Connection c = db.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                long messageId;
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO chat_messages (conversation_id, sender_username, body, message_type, metadata_json, workflow_status, created_at, updated_at) " +
+                                "VALUES (?, ?, ?, 'WORKFLOW_CARD', ?, 'PENDING', NOW(), NOW())",
+                        Statement.RETURN_GENERATED_KEYS)) {
+                    ps.setLong(1, conversationId);
+                    ps.setString(2, user.username);
+                    ps.setString(3, body);
+                    ps.setString(4, metadata);
+                    ps.executeUpdate();
+                    messageId = generatedId(ps);
+                }
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO chat_workflows (message_id, workflow_type, employee_id, work_date, payload_json, status, created_at) VALUES (?, ?, ?, ?, ?, 'PENDING', NOW())")) {
+                    ps.setLong(1, messageId);
+                    ps.setString(2, safeType);
+                    ps.setString(3, user.employeeId);
+                    ps.setDate(4, java.sql.Date.valueOf(workDate));
+                    ps.setString(5, metadata);
+                    ps.executeUpdate();
+                }
+                c.commit();
+                return messageId;
+            } catch (Exception e) {
+                c.rollback();
+                throw e;
+            }
+        }
+    }
+
+    void decideWorkflow(CurrentUser user, long messageId, boolean approved) throws Exception {
+        if (!user.canManageGroups()) {
+            throw new IllegalArgumentException("Chi Admin hoac Truong phong duoc duyet workflow.");
+        }
+        try (Connection c = db.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                String employeeId;
+                LocalDate workDate;
+                String payload;
+                try (PreparedStatement ps = c.prepareStatement("SELECT employee_id, work_date, payload_json FROM chat_workflows WHERE message_id = ? FOR UPDATE")) {
+                    ps.setLong(1, messageId);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) {
+                            throw new IllegalArgumentException("Khong tim thay workflow.");
+                        }
+                        employeeId = rs.getString("employee_id");
+                        workDate = rs.getDate("work_date").toLocalDate();
+                        payload = rs.getString("payload_json");
+                    }
+                }
+                String status = approved ? "APPROVED" : "REJECTED";
+                try (PreparedStatement ps = c.prepareStatement("UPDATE chat_workflows SET status = ?, decided_by = ?, decided_at = NOW() WHERE message_id = ?")) {
+                    ps.setString(1, status);
+                    ps.setString(2, user.username);
+                    ps.setLong(3, messageId);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = c.prepareStatement("UPDATE chat_messages SET workflow_status = ?, updated_at = NOW() WHERE id = ?")) {
+                    ps.setString(1, status);
+                    ps.setLong(2, messageId);
+                    ps.executeUpdate();
+                }
+                if (approved) {
+                    Map<String, String> meta = chatshared.JsonUtil.parseObject(payload);
+                    String shift = meta.getOrDefault("shift", "Đã duyệt qua chat");
+                    try (PreparedStatement ps = c.prepareStatement(
+                            "INSERT INTO schedules (employee_id, work_date, shift) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE shift = VALUES(shift)")) {
+                        ps.setString(1, employeeId);
+                        ps.setDate(2, java.sql.Date.valueOf(workDate));
+                        ps.setString(3, shift);
+                        ps.executeUpdate();
+                    }
+                }
+                c.commit();
+            } catch (Exception e) {
+                c.rollback();
+                throw e;
+            }
+        }
+    }
+
+    String salaryDetail(CurrentUser user, String metadataJson) throws Exception {
+        Map<String, String> meta = chatshared.JsonUtil.parseObject(metadataJson);
+        String employeeId = meta.getOrDefault("employeeId", "");
+        int month = Integer.parseInt(meta.getOrDefault("month", "0"));
+        int year = Integer.parseInt(meta.getOrDefault("year", "0"));
+        String sql = "SELECT e.name, e.baseSalary, s.total_salary, s.calculated_at FROM salary_history s " +
+                "JOIN employees e ON e.id = s.employee_id " +
+                "WHERE s.employee_id = ? AND s.pay_month = ? AND s.pay_year = ? " +
+                "AND (e.login_username = ? OR e.account_username = ?) LIMIT 1";
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, employeeId);
+            ps.setInt(2, month);
+            ps.setInt(3, year);
+            ps.setString(4, user.username);
+            ps.setString(5, user.username);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    throw new IllegalArgumentException("Khong tim thay phieu luong hoac ban khong co quyen xem.");
+                }
+                return "Nhân viên: " + rs.getString("name") +
+                        "\nTháng: " + month + "/" + year +
+                        "\nLương cơ bản: " + String.format("%,.0f VNĐ", rs.getDouble("baseSalary")) +
+                        "\nThực lĩnh: " + String.format("%,.0f VNĐ", rs.getDouble("total_salary")) +
+                        "\nNgày tính: " + rs.getDate("calculated_at");
+            }
+        }
+    }
+
     List<ChatMessage> listMessages(CurrentUser user, long conversationId, String search) throws Exception {
         if (!isMember(conversationId, user.username)) {
             throw new IllegalArgumentException("Ban khong thuoc hoi thoai nay.");
@@ -225,24 +414,6 @@ final class ChatService {
         }
         markRead(user, conversationId);
         return messages;
-    }
-
-    String messageKey(CurrentUser user, long conversationId) throws Exception {
-        if (!isMember(conversationId, user.username)) {
-            return "0:0:0";
-        }
-        String sql = "SELECT COUNT(*) total, COALESCE(MAX(id), 0) max_id, " +
-                "COALESCE(UNIX_TIMESTAMP(MAX(updated_at)), 0) max_updated FROM chat_messages " +
-                "WHERE conversation_id = ? AND deleted_at IS NULL";
-        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setLong(1, conversationId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getLong("total") + ":" + rs.getLong("max_id") + ":" + rs.getLong("max_updated");
-                }
-            }
-        }
-        return "0:0:0";
     }
 
     long sendMessage(CurrentUser user, long conversationId, String body, Long replyToId, List<File> files) throws Exception {
@@ -374,6 +545,20 @@ final class ChatService {
         CurrentUser virtual = new CurrentUser(companyOwner, companyOwner, "ADMIN", companyOwner, null, null, null);
         for (String username : companyUsernames(virtual)) {
             ensureMember(conversationId, username, username.equals(companyOwner) ? "OWNER" : "MEMBER");
+        }
+    }
+
+    private void syncDepartmentMembers(long conversationId, String companyOwner, String department) throws Exception {
+        ensureMember(conversationId, companyOwner, "OWNER");
+        String sql = "SELECT login_username FROM employees WHERE account_username = ? AND department = ? AND status = 'APPROVED'";
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, companyOwner);
+            ps.setString(2, department);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ensureMember(conversationId, rs.getString("login_username"), "MEMBER");
+                }
+            }
         }
     }
 
@@ -569,6 +754,9 @@ final class ChatService {
         m.senderUsername = rs.getString("sender_username");
         m.senderName = rs.getString("sender_name");
         m.body = rs.getString("body");
+        m.messageType = rs.getString("message_type");
+        m.metadataJson = rs.getString("metadata_json");
+        m.workflowStatus = rs.getString("workflow_status");
         long reply = rs.getLong("reply_to_id");
         m.replyToId = rs.wasNull() ? null : reply;
         m.replyPreview = rs.getString("reply_body");

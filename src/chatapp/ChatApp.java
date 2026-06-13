@@ -3,19 +3,22 @@ package chatapp;
 import java.awt.Desktop;
 import java.io.File;
 import java.nio.file.Files;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import javafx.animation.KeyFrame;
 import javafx.animation.PauseTransition;
-import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -27,6 +30,7 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ContextMenu;
+import javafx.scene.control.DatePicker;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
@@ -34,7 +38,7 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.Separator;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
@@ -90,7 +94,12 @@ public class ChatApp extends Application {
     private Button newGroupButton;
     private Button manageGroupButton;
     private Button pinConversationButton;
-    private Timeline poller;
+    private RealtimeClient realtimeClient;
+    private final ExecutorService dbExecutor = Executors.newCachedThreadPool(r -> {
+        Thread thread = new Thread(r, "chat-db-worker");
+        thread.setDaemon(true);
+        return thread;
+    });
     private Long replyToId;
     private int lastUnreadTotal = -1;
     private boolean loadingConversations;
@@ -112,9 +121,11 @@ public class ChatApp extends Application {
 
     @Override
     public void stop() {
-        if (poller != null) {
-            poller.stop();
+        if (realtimeClient != null) {
+            realtimeClient.close();
         }
+        dbExecutor.shutdownNow();
+        database.close();
         hideChatHead();
     }
 
@@ -144,23 +155,27 @@ public class ChatApp extends Application {
         Runnable doLogin = () -> {
             status.setText("");
             login.setDisable(true);
-            try {
+            runDb(() -> {
                 new SchemaManager(database).init();
                 currentUser = authService.login(username.getText().trim(), password.getText());
                 if (currentUser == null) {
-                    status.setText("Sai tài khoản/mật khẩu hoặc tài khoản nhân viên chưa được duyệt.");
-                    return;
+                    return false;
                 }
                 chatService.cleanupOldMessages(config.retentionDays);
                 chatService.ensureCompanyConversation(currentUser);
                 companyUsers = chatService.listCompanyUsers(currentUser);
-                showChat();
-            } catch (Exception e) {
-                status.setText("Không thể kết nối: " + e.getMessage());
-                e.printStackTrace();
-            } finally {
+                return true;
+            }, ok -> {
                 login.setDisable(false);
-            }
+                if (!ok) {
+                    status.setText("Sai tài khoản/mật khẩu hoặc tài khoản nhân viên chưa được duyệt.");
+                    return;
+                }
+                showChat();
+            }, e -> {
+                login.setDisable(false);
+                status.setText("Không thể kết nối: " + e.getMessage());
+            });
         };
 
         login.setOnAction(e -> doLogin.run());
@@ -185,7 +200,7 @@ public class ChatApp extends Application {
         stage.show();
     }
 
-    private void showChat() throws Exception {
+    private void showChat() {
         BorderPane root = new BorderPane();
         appRoot = root;
         root.getStyleClass().add("root");
@@ -198,13 +213,8 @@ public class ChatApp extends Application {
         installShortcuts(scene);
         stage.setScene(scene);
         stage.setMaximized(true);
-        loadConversations();
-        if (currentConversation != null) {
-            refreshMessages(true);
-        } else {
-            showEmptyConversation();
-        }
-        startPolling();
+        connectRealtime();
+        loadConversationsAsync();
     }
 
     private Node buildSidebar() {
@@ -351,9 +361,8 @@ public class ChatApp extends Application {
     }
 
     private void loadConversations() {
-        try {
+        runDb(() -> chatService.listConversations(currentUser), loaded -> {
             long selectedId = currentConversation == null ? 0 : currentConversation.id;
-            List<Conversation> loaded = chatService.listConversations(currentUser);
             try {
                 loadingConversations = true;
                 conversations.setAll(loaded);
@@ -380,9 +389,18 @@ public class ChatApp extends Application {
                 notifyNewMessage(notifyConversation);
             }
             lastUnreadTotal = unread;
-        } catch (Exception e) {
+            if (currentConversation != null) {
+                refreshMessages(true);
+            } else {
+                showEmptyConversation();
+            }
+        }, e -> {
             showError("Lỗi tải hội thoại", e);
-        }
+        });
+    }
+
+    private void loadConversationsAsync() {
+        loadConversations();
     }
 
     private void refreshConversationFilter() {
@@ -413,25 +431,25 @@ public class ChatApp extends Application {
             pinConversationButton.setText(currentConversation.pinned ? "Bỏ ghim" : "Ghim");
             pinConversationButton.setDisable(false);
             String search = messageSearch == null ? "" : Texts.safe(messageSearch.getText());
-            String messageKey = chatService.messageKey(currentUser, currentConversation.id) + ":" + search;
-            if (!forceRender
-                    && currentConversation.id == lastRenderedConversationId
-                    && messageKey.equals(lastRenderedMessageKey)) {
-                return;
-            }
+            long conversationId = currentConversation.id;
             boolean shouldScrollToBottom = forceScrollToBottom || forceRender || isNearBottom();
-            currentMessages = chatService.listMessages(currentUser, currentConversation.id, messageSearch.getText());
-            if (currentMessages.isEmpty()) {
-                messageBox.getChildren().setAll(emptyState("Chưa có tin nhắn", "Hãy gửi lời chào để bắt đầu cuộc trò chuyện."));
-            } else {
-                messageBox.getChildren().setAll(currentMessages.stream().map(this::messageNode).collect(Collectors.toList()));
-            }
-            lastRenderedConversationId = currentConversation.id;
-            lastRenderedMessageKey = messageKey;
-            if (shouldScrollToBottom) {
-                Platform.runLater(() -> messageScroll.setVvalue(1.0));
-            }
-            forceScrollToBottom = false;
+            runDb(() -> chatService.listMessages(currentUser, conversationId, search), messages -> {
+                if (currentConversation == null || currentConversation.id != conversationId) {
+                    return;
+                }
+                currentMessages = messages;
+                if (currentMessages.isEmpty()) {
+                    messageBox.getChildren().setAll(emptyState("Chưa có tin nhắn", "Hãy gửi lời chào để bắt đầu cuộc trò chuyện."));
+                } else {
+                    messageBox.getChildren().setAll(currentMessages.stream().map(this::messageNode).collect(Collectors.toList()));
+                }
+                lastRenderedConversationId = conversationId;
+                lastRenderedMessageKey = search;
+                if (shouldScrollToBottom) {
+                    Platform.runLater(() -> messageScroll.setVvalue(1.0));
+                }
+                forceScrollToBottom = false;
+            }, e -> showError("Lỗi tải tin nhắn", e));
         } catch (Exception e) {
             showError("Lỗi tải tin nhắn", e);
         }
@@ -484,7 +502,11 @@ public class ChatApp extends Application {
             recalled.getStyleClass().add("recalled-text");
             bubble.getChildren().add(recalled);
         } else {
-            if (msg.body != null && !msg.body.isBlank()) {
+            if ("SALARY_CARD".equals(msg.messageType)) {
+                bubble.getChildren().add(salaryCardNode(msg));
+            } else if ("WORKFLOW_CARD".equals(msg.messageType)) {
+                bubble.getChildren().add(workflowCardNode(msg));
+            } else if (msg.body != null && !msg.body.isBlank()) {
                 if (isVoteMessage(msg.body)) {
                     bubble.getChildren().add(voteNode(msg.body));
                 } else {
@@ -546,8 +568,51 @@ public class ChatApp extends Application {
         javafx.scene.control.MenuItem forward = new javafx.scene.control.MenuItem("Chuyển tiếp");
         forward.setDisable(msg.recalled);
         forward.setOnAction(e -> forwardMessage(msg));
-        menu.getItems().addAll(reply, edit, recall, pin, forward);
+        javafx.scene.control.MenuItem task = new javafx.scene.control.MenuItem("Chuyển thành công việc (Giao KPI Task)");
+        task.setDisable(msg.recalled);
+        task.setOnAction(e -> createTaskFromMessage(msg));
+        menu.getItems().addAll(reply, edit, recall, pin, forward, new SeparatorMenuItem(), task);
         return menu;
+    }
+
+    private void createTaskFromMessage(ChatMessage msg) {
+        runDb(() -> chatService.listTaskTargets(currentUser), targets -> {
+            if (targets.isEmpty()) {
+                showInfo("Chưa có nhân viên APPROVED để giao việc.");
+                return;
+            }
+            Dialog<TaskTarget> dialog = new Dialog<>();
+            dialog.setTitle("Giao KPI Task từ tin nhắn");
+            styleDialog(dialog);
+            ButtonType save = new ButtonType("Lưu task", ButtonBar.ButtonData.OK_DONE);
+            dialog.getDialogPane().getButtonTypes().addAll(save, ButtonType.CANCEL);
+            ComboBox<TaskTarget> employee = new ComboBox<>(FXCollections.observableArrayList(targets));
+            employee.getStyleClass().add("dialog-search");
+            targets.stream()
+                    .filter(t -> t.username != null && t.username.equals(msg.senderUsername))
+                    .findFirst()
+                    .ifPresent(employee::setValue);
+            TextArea description = new TextArea(Texts.safe(msg.body).isBlank() ? "Công việc từ file/tin nhắn" : msg.body);
+            description.getStyleClass().add("dialog-text-area");
+            description.setWrapText(true);
+            DatePicker deadline = new DatePicker(LocalDate.now().plusDays(1));
+            VBox content = new VBox(10,
+                    label("Người thực hiện", "dialog-label"), employee,
+                    label("Mô tả công việc", "dialog-label"), description,
+                    label("Deadline", "dialog-label"), deadline);
+            content.getStyleClass().add("dialog-content");
+            dialog.getDialogPane().setContent(content);
+            dialog.setResultConverter(btn -> btn == save ? employee.getValue() : null);
+            dialog.showAndWait().ifPresent(target -> runDb(() -> chatService.createTask(
+                    currentUser,
+                    msg.id,
+                    target.employeeId,
+                    description.getText(),
+                    deadline.getValue()), taskId -> {
+                showInfo("Đã tạo KPI Task.");
+                publishRealtime("TASK_UPDATED", msg.conversationId);
+            }, e -> showError("Không tạo được KPI Task", e)));
+        }, e -> showError("Không tải được danh sách nhân viên", e));
     }
 
     private void forwardMessage(ChatMessage msg) {
@@ -572,16 +637,16 @@ public class ChatApp extends Application {
         dialog.getDialogPane().setContent(content);
         dialog.setResultConverter(btn -> btn == send ? list.getSelectionModel().getSelectedItem() : null);
         dialog.showAndWait().ifPresent(target -> {
-            try {
-                String text = Texts.safe(msg.body).isBlank()
-                        ? "Chuyển tiếp file từ " + msg.senderName
-                        : "Chuyển tiếp: " + msg.body;
-                chatService.sendMessage(currentUser, target.id, text, null, List.of());
+            String text = Texts.safe(msg.body).isBlank()
+                    ? "Chuyển tiếp file từ " + msg.senderName
+                    : "Chuyển tiếp: " + msg.body;
+            runDb(() -> chatService.sendMessage(currentUser, target.id, text, null, List.of()), messageId -> {
                 loadConversations();
+                publishRealtime("MESSAGE_CREATED", target.id);
                 showInfo("Đã chuyển tiếp tin nhắn.");
-            } catch (Exception e) {
+            }, e -> {
                 showError("Không chuyển tiếp được tin", e);
-            }
+            });
         });
     }
 
@@ -645,13 +710,117 @@ public class ChatApp extends Application {
         return card;
     }
 
+    private Node salaryCardNode(ChatMessage msg) {
+        Label title = new Label("Phiếu lương bảo mật");
+        title.getStyleClass().add("vote-title");
+        Label body = new Label(Texts.safe(msg.body));
+        body.getStyleClass().add("message-body");
+        body.setWrapText(true);
+        Button open = new Button("Xem chi tiết phiếu lương");
+        open.getStyleClass().add("file-open-button");
+        open.setOnAction(e -> openSalaryCard(msg));
+        VBox card = new VBox(8, title, body, open);
+        card.getStyleClass().add("vote-card");
+        return card;
+    }
+
+    private Node workflowCardNode(ChatMessage msg) {
+        Label title = new Label("Quy trình tương tác");
+        title.getStyleClass().add("vote-title");
+        Label body = new Label(Texts.safe(msg.body));
+        body.getStyleClass().add("message-body");
+        body.setWrapText(true);
+        Label status = new Label("Trạng thái: " + (msg.workflowStatus == null || msg.workflowStatus.isBlank() ? "PENDING" : msg.workflowStatus));
+        status.getStyleClass().add("pin-chip");
+        HBox actions = new HBox(8);
+        if (currentUser.canManageGroups() && (msg.workflowStatus == null || "PENDING".equals(msg.workflowStatus))) {
+            Button approve = new Button("Đồng ý");
+            approve.getStyleClass().add("file-open-button");
+            approve.setOnAction(e -> decideWorkflow(msg, true));
+            Button reject = new Button("Từ chối");
+            reject.getStyleClass().add("file-open-button");
+            reject.setOnAction(e -> decideWorkflow(msg, false));
+            actions.getChildren().addAll(approve, reject);
+        }
+        VBox card = new VBox(8, title, body, status, actions);
+        card.getStyleClass().add("vote-card");
+        return card;
+    }
+
+    private void decideWorkflow(ChatMessage msg, boolean approved) {
+        runDb(() -> {
+            chatService.decideWorkflow(currentUser, msg.id, approved);
+            return true;
+        }, ok -> {
+            refreshMessages(true);
+            publishRealtime("WORKFLOW_UPDATED", msg.conversationId);
+        }, e -> showError("Không cập nhật được workflow", e));
+    }
+
+    private void openSalaryCard(ChatMessage msg) {
+        PasswordField password = new PasswordField();
+        password.setPromptText("Nhập lại mật khẩu");
+        password.getStyleClass().add("login-input");
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle("Xác thực phiếu lương");
+        styleDialog(dialog);
+        ButtonType open = new ButtonType("Xem", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(open, ButtonType.CANCEL);
+        dialog.getDialogPane().setContent(new VBox(10, label("Vui lòng nhập lại mật khẩu để xem phiếu lương.", "dialog-label"), password));
+        dialog.setResultConverter(btn -> btn == open ? password.getText() : null);
+        dialog.showAndWait().ifPresent(pass -> runDb(() -> {
+            CurrentUser verified = authService.login(currentUser.username, pass);
+            if (verified == null) {
+                throw new IllegalArgumentException("Mật khẩu không đúng.");
+            }
+            return chatService.salaryDetail(currentUser, msg.metadataJson);
+        }, detail -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION, detail);
+            styleDialog(alert);
+            alert.setTitle("Chi tiết phiếu lương");
+            alert.setHeaderText("Phiếu lương");
+            alert.showAndWait();
+        }, e -> showError("Không mở được phiếu lương", e)));
+    }
+
+    private void showWorkflowDialog(String type) {
+        if (currentConversation == null) {
+            showInfo("Hãy chọn hội thoại trước.");
+            return;
+        }
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle("OT".equals(type) ? "Xin tăng ca" : "Xin đổi ca");
+        styleDialog(dialog);
+        ButtonType send = new ButtonType("Gửi yêu cầu", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(send, ButtonType.CANCEL);
+        DatePicker date = new DatePicker(LocalDate.now().plusDays(1));
+        TextField shift = new TextField("OT".equals(type) ? "Tăng ca" : "Ca mới");
+        shift.getStyleClass().add("dialog-search");
+        VBox content = new VBox(10, label("Ngày làm việc", "dialog-label"), date, label("Ca/Nội dung", "dialog-label"), shift);
+        content.getStyleClass().add("dialog-content");
+        dialog.getDialogPane().setContent(content);
+        dialog.setResultConverter(btn -> btn == send ? shift.getText() : null);
+        dialog.showAndWait().ifPresent(value -> {
+            long conversationId = currentConversation.id;
+            runDb(() -> chatService.createWorkflow(currentUser, conversationId, type, date.getValue(), value), messageId -> {
+                forceScrollToBottom = true;
+                refreshMessages(true);
+                loadConversations();
+                publishRealtime("MESSAGE_CREATED", conversationId);
+            }, e -> showError("Không gửi được workflow", e));
+        });
+    }
+
     private void sendCurrentMessage() {
         if (currentConversation == null) {
             showInfo("Hãy chọn hội thoại trước.");
             return;
         }
-        try {
-            chatService.sendMessage(currentUser, currentConversation.id, input.getText(), replyToId, new ArrayList<>(selectedFiles));
+        long conversationId = currentConversation.id;
+        String body = input.getText();
+        Long replyId = replyToId;
+        List<File> files = new ArrayList<>(selectedFiles);
+        runDb(() -> chatService.sendMessage(currentUser, conversationId, body, replyId, files), messageId -> {
             input.clear();
             selectedFiles.clear();
             replyToId = null;
@@ -662,9 +831,10 @@ public class ChatApp extends Application {
             forceScrollToBottom = true;
             refreshMessages(true);
             loadConversations();
-        } catch (Exception e) {
+            publishRealtime("MESSAGE_CREATED", conversationId);
+        }, e -> {
             showError("Không gửi được tin", e);
-        }
+        });
     }
 
     private void chooseFiles() {
@@ -685,7 +855,11 @@ public class ChatApp extends Application {
         media.setOnAction(e -> chooseMediaFiles());
         MenuItem vote = new MenuItem("Tạo vote");
         vote.setOnAction(e -> showVoteDialog());
-        menu.getItems().addAll(files, media, vote);
+        MenuItem ot = new MenuItem("Xin tăng ca");
+        ot.setOnAction(e -> showWorkflowDialog("OT"));
+        MenuItem shift = new MenuItem("Xin đổi ca");
+        shift.setOnAction(e -> showWorkflowDialog("SHIFT_CHANGE"));
+        menu.getItems().addAll(files, media, vote, new SeparatorMenuItem(), ot, shift);
         menu.show(owner, javafx.geometry.Side.TOP, 0, -8);
     }
 
@@ -742,14 +916,15 @@ public class ChatApp extends Application {
             return "[VOTE] " + question.getText().trim() + " | " + String.join(" | ", choices);
         });
         dialog.showAndWait().ifPresent(vote -> {
-            try {
-                chatService.sendMessage(currentUser, currentConversation.id, vote, null, List.of());
+            long conversationId = currentConversation.id;
+            runDb(() -> chatService.sendMessage(currentUser, conversationId, vote, null, List.of()), messageId -> {
                 forceScrollToBottom = true;
                 refreshMessages(true);
                 loadConversations();
-            } catch (Exception e) {
+                publishRealtime("MESSAGE_CREATED", conversationId);
+            }, e -> {
                 showError("Không tạo được vote", e);
-            }
+            });
         });
     }
 
@@ -895,53 +1070,73 @@ public class ChatApp extends Application {
         area.setWrapText(true);
         Dialog<String> dialog = simpleDialog("Sửa tin nhắn", area);
         dialog.showAndWait().ifPresent(text -> {
-            try {
+            runDb(() -> {
                 chatService.editMessage(currentUser, msg.id, text);
+                return true;
+            }, ok -> {
                 refreshMessages(true);
-            } catch (Exception e) {
+                publishRealtime("MESSAGE_UPDATED", msg.conversationId);
+            }, e -> {
                 showError("Không sửa được tin", e);
-            }
+            });
         });
     }
 
     private void recallMessage(ChatMessage msg) {
-        try {
+        runDb(() -> {
             chatService.recallMessage(currentUser, msg.id);
+            return true;
+        }, ok -> {
             refreshMessages(true);
-        } catch (Exception e) {
+            publishRealtime("MESSAGE_UPDATED", msg.conversationId);
+        }, e -> {
             showError("Không thu hồi được tin", e);
-        }
+        });
     }
 
     private void pinMessage(ChatMessage msg) {
-        try {
+        runDb(() -> {
             chatService.togglePinMessage(currentUser, msg.id, !msg.pinned);
+            return true;
+        }, ok -> {
             refreshMessages(true);
-        } catch (Exception e) {
+            publishRealtime("MESSAGE_UPDATED", msg.conversationId);
+        }, e -> {
             showError("Không ghim được tin", e);
-        }
+        });
     }
 
     private void toggleConversationPin() {
         if (currentConversation == null) return;
-        try {
-            chatService.togglePinConversation(currentUser, currentConversation.id, !currentConversation.pinned);
+        long conversationId = currentConversation.id;
+        runDb(() -> {
+            chatService.togglePinConversation(currentUser, conversationId, !currentConversation.pinned);
+            return true;
+        }, ok -> {
             loadConversations();
-        } catch (Exception e) {
+            publishRealtime("CONVERSATION_UPDATED", conversationId);
+        }, e -> {
             showError("Không ghim được hội thoại", e);
-        }
+        });
     }
 
-    private void startPolling() {
-        if (poller != null) poller.stop();
-        poller = new Timeline(new KeyFrame(Duration.seconds(config.pollSeconds), e -> {
+    private void connectRealtime() {
+        if (realtimeClient != null) {
+            realtimeClient.close();
+        }
+        realtimeClient = new RealtimeClient(config, () -> Platform.runLater(() -> {
             loadConversations();
             if (currentConversation != null) {
-                refreshMessages(false);
+                refreshMessages(true);
             }
         }));
-        poller.setCycleCount(Timeline.INDEFINITE);
-        poller.play();
+        realtimeClient.connect(currentUser.username);
+    }
+
+    private void publishRealtime(String type, long conversationId) {
+        if (realtimeClient != null) {
+            realtimeClient.publish(type, conversationId);
+        }
     }
 
     private void notifyNewMessage(Conversation conversation) {
@@ -1152,8 +1347,8 @@ public class ChatApp extends Application {
         confirm.getButtonTypes().setAll(logout, ButtonType.CANCEL);
         confirm.showAndWait().ifPresent(choice -> {
             if (choice == logout) {
-                if (poller != null) {
-                    poller.stop();
+                if (realtimeClient != null) {
+                    realtimeClient.close();
                 }
                 hideChatHead();
                 currentUser = null;
@@ -1223,6 +1418,25 @@ public class ChatApp extends Application {
         if (attachmentLabel != null) {
             updateAttachmentLabel();
         }
+    }
+
+    private <T> void runDb(DbCall<T> call, Consumer<T> onSuccess, Consumer<Exception> onFailed) {
+        Task<T> task = new Task<>() {
+            @Override
+            protected T call() throws Exception {
+                return call.execute();
+            }
+        };
+        task.setOnSucceeded(e -> onSuccess.accept(task.getValue()));
+        task.setOnFailed(e -> {
+            Throwable error = task.getException();
+            onFailed.accept(error instanceof Exception ex ? ex : new Exception(error));
+        });
+        dbExecutor.submit(task);
+    }
+
+    private interface DbCall<T> {
+        T execute() throws Exception;
     }
 
     private VBox settingsSection(String title, Node... children) {

@@ -37,12 +37,18 @@ final class ChatUser {
     final String displayName;
     final String role;
     final String position;
+    final LocalDateTime lastSeenAt;
 
     ChatUser(String username, String displayName, String role, String position) {
+        this(username, displayName, role, position, null);
+    }
+
+    ChatUser(String username, String displayName, String role, String position, LocalDateTime lastSeenAt) {
         this.username = username;
         this.displayName = displayName == null || displayName.isBlank() ? username : displayName;
         this.role = role;
         this.position = position;
+        this.lastSeenAt = lastSeenAt;
     }
 
     @Override
@@ -84,6 +90,7 @@ final class ChatMessage {
     boolean edited;
     boolean recalled;
     boolean pinned;
+    String reactionSummary;
     LocalDateTime createdAt;
     int seenCount;
     final List<Attachment> attachments = new ArrayList<>();
@@ -130,4 +137,66 @@ final class ChatTask {
     int kpiPoints;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
+}
+
+final class MessageSearchCriteria {
+    String keyword = "";
+    String senderUsername = "";
+    LocalDateTime from;
+    LocalDateTime to;
+    boolean onlyFiles;
+    boolean onlyPinned;
+    boolean onlyMentions;
+    boolean onlyTasks;
+    boolean includeArchive;
+}
+
+final class ScheduledMessage {
+    long id;
+    long conversationId;
+    String conversationTitle;
+    String senderUsername;
+    String body;
+    String status;
+    LocalDateTime scheduledAt;
+    LocalDateTime sentAt;
+    LocalDateTime createdAt;
+}
+
+final class ChatReminder {
+    long id;
+    Long conversationId;
+    String conversationTitle;
+    String username;
+    String title;
+    String body;
+    String status;
+    LocalDateTime remindAt;
+    LocalDateTime sentAt;
+    LocalDateTime createdAt;
+}
+
+final class ReactionDetail {
+    String emoji;
+    String username;
+    String displayName;
+    LocalDateTime createdAt;
+}
+
+final class MentionItem {
+    long messageId;
+    long conversationId;
+    String conversationTitle;
+    String senderUsername;
+    String senderName;
+    String body;
+    LocalDateTime createdAt;
+}
+
+final class PollOption {
+    long pollId;
+    long optionId;
+    String optionText;
+    int voteCount;
+    boolean selectedByMe;
 }

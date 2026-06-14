@@ -77,8 +77,9 @@ final class ChatService {
 
     List<ChatUser> listCompanyUsers(CurrentUser user) throws Exception {
         Map<String, ChatUser> users = new LinkedHashMap<>();
-        String adminSql = "SELECT username, full_name, role FROM users WHERE username = ?";
-        String empSql = "SELECT u.username, COALESCE(e.name, u.full_name, u.username) display_name, u.role, e.position " +
+        String adminSql = "SELECT u.username, u.full_name, u.role, (SELECT MAX(s.last_seen_at) FROM chat_sessions s WHERE s.username = u.username AND s.revoked_at IS NULL) last_seen_at FROM users u WHERE u.username = ?";
+        String empSql = "SELECT u.username, COALESCE(e.name, u.full_name, u.username) display_name, u.role, e.position, " +
+                "(SELECT MAX(s.last_seen_at) FROM chat_sessions s WHERE s.username = u.username AND s.revoked_at IS NULL) last_seen_at " +
                 "FROM employees e JOIN users u ON u.username = e.login_username " +
                 "WHERE e.account_username = ? AND e.status = 'APPROVED' ORDER BY display_name";
         try (Connection c = db.getConnection()) {
@@ -86,7 +87,7 @@ final class ChatService {
                 ps.setString(1, user.companyOwner);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
-                        users.put(rs.getString("username"), new ChatUser(rs.getString("username"), rs.getString("full_name"), rs.getString("role"), "Admin"));
+                        users.put(rs.getString("username"), new ChatUser(rs.getString("username"), rs.getString("full_name"), rs.getString("role"), "Admin", timestampToLocalDateTime(rs.getTimestamp("last_seen_at"))));
                     }
                 }
             }
@@ -94,7 +95,7 @@ final class ChatService {
                 ps.setString(1, user.companyOwner);
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
-                        users.put(rs.getString("username"), new ChatUser(rs.getString("username"), rs.getString("display_name"), rs.getString("role"), rs.getString("position")));
+                        users.put(rs.getString("username"), new ChatUser(rs.getString("username"), rs.getString("display_name"), rs.getString("role"), rs.getString("position"), timestampToLocalDateTime(rs.getTimestamp("last_seen_at"))));
                     }
                 }
             }
@@ -104,10 +105,10 @@ final class ChatService {
 
     long openDirectConversation(CurrentUser user, String otherUsername) throws Exception {
         if (user.username.equals(otherUsername)) {
-            throw new IllegalArgumentException("Khong the chat voi chinh minh.");
+            throw new IllegalArgumentException("Không thể chat với chính mình.");
         }
         if (!companyUsernames(user).contains(otherUsername)) {
-            throw new IllegalArgumentException("Nguoi dung khong thuoc cong ty.");
+            throw new IllegalArgumentException("Người dùng không thuộc công ty.");
         }
         String key = directKey(user.username, otherUsername);
         long existing = findConversationByDirectKey(user.companyOwner, key);
@@ -135,10 +136,10 @@ final class ChatService {
 
     long createGroup(CurrentUser user, String title, List<String> members) throws Exception {
         if (!user.canManageGroups()) {
-            throw new IllegalArgumentException("Chi Admin hoac Truong phong duoc tao nhom.");
+            throw new IllegalArgumentException("Chỉ Admin hoặc Trưởng phòng được tạo nhóm.");
         }
         if (title == null || title.isBlank()) {
-            throw new IllegalArgumentException("Ten nhom khong duoc de trong.");
+            throw new IllegalArgumentException("Tên nhóm không được để trống.");
         }
         Set<String> allowed = companyUsernames(user);
         Set<String> selected = new HashSet<>(members);
@@ -165,11 +166,11 @@ final class ChatService {
 
     void updateGroup(CurrentUser user, long conversationId, String title, List<String> members) throws Exception {
         if (!user.canManageGroups()) {
-            throw new IllegalArgumentException("Chi Admin hoac Truong phong duoc quan ly nhom.");
+            throw new IllegalArgumentException("Chỉ Admin hoặc Trưởng phòng được quản lý nhóm.");
         }
         Conversation conv = getConversation(conversationId);
         if (conv == null || !"GROUP".equals(conv.type) || !user.companyOwner.equals(conv.companyOwner)) {
-            throw new IllegalArgumentException("Nhom khong hop le.");
+            throw new IllegalArgumentException("Nhóm không hợp lệ.");
         }
         Set<String> allowed = companyUsernames(user);
         Set<String> selected = new HashSet<>(members);
@@ -228,10 +229,10 @@ final class ChatService {
 
     long createTask(CurrentUser user, long messageId, String employeeId, String description, LocalDate deadline) throws Exception {
         if (employeeId == null || employeeId.isBlank()) {
-            throw new IllegalArgumentException("Chua chon nhan vien.");
+            throw new IllegalArgumentException("Chưa chọn nhân viên.");
         }
         if (description == null || description.isBlank()) {
-            throw new IllegalArgumentException("Noi dung cong viec khong duoc de trong.");
+            throw new IllegalArgumentException("Nội dung công việc không được để trống.");
         }
         String allowedSql = "SELECT 1 FROM employees WHERE id = ? AND account_username = ? AND status = 'APPROVED'";
         try (Connection c = db.getConnection()) {
@@ -240,7 +241,7 @@ final class ChatService {
                 allowed.setString(2, user.companyOwner);
                 try (ResultSet rs = allowed.executeQuery()) {
                     if (!rs.next()) {
-                        throw new IllegalArgumentException("Nhan vien khong thuoc cong ty hoac chua duoc duyet.");
+                        throw new IllegalArgumentException("Nhân viên không thuộc công ty hoặc chưa được duyệt.");
                     }
                 }
             }
@@ -263,17 +264,17 @@ final class ChatService {
 
     long createTask(CurrentUser user, long conversationId, String title, String description, String assignee, String priority, LocalDateTime deadline, int kpi) throws Exception {
         if (!isMember(conversationId, user.username)) {
-            throw new IllegalArgumentException("Ban khong thuoc hoi thoai nay.");
+            throw new IllegalArgumentException("Bạn không thuộc hội thoại này.");
         }
         if (title == null || title.isBlank()) {
-            throw new IllegalArgumentException("Ten cong viec khong duoc de trong.");
+            throw new IllegalArgumentException("Tên công việc không được để trống.");
         }
         if (assignee == null || assignee.isBlank() || !isMember(conversationId, assignee)) {
-            throw new IllegalArgumentException("Nguoi thuc hien khong thuoc hoi thoai.");
+            throw new IllegalArgumentException("Người thực hiện không thuộc hội thoại.");
         }
         String safePriority = normalizePriority(priority);
         if (kpi < 0) {
-            throw new IllegalArgumentException("Diem KPI khong duoc am.");
+            throw new IllegalArgumentException("Điểm KPI không được âm.");
         }
         try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
                 "INSERT INTO chat_tasks (conversation_id, title, description, assignee_username, created_by, status, priority, deadline, kpi_points, created_at, updated_at) " +
@@ -298,7 +299,7 @@ final class ChatService {
 
     List<ChatTask> listTasksByConversation(CurrentUser user, long conversationId) throws Exception {
         if (!isMember(conversationId, user.username)) {
-            throw new IllegalArgumentException("Ban khong thuoc hoi thoai nay.");
+            throw new IllegalArgumentException("Bạn không thuộc hội thoại này.");
         }
         List<ChatTask> tasks = new ArrayList<>();
         String sql = "SELECT t.*, COALESCE(e.name, u.full_name, t.assignee_username) assignee_name " +
@@ -345,6 +346,22 @@ final class ChatService {
             ps.setString(1, user.username);
             ps.setString(2, user.username);
             ps.setString(3, user.username);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
+    int countPendingWorkflows(CurrentUser user) throws Exception {
+        if (!user.canManageGroups()) {
+            return 0;
+        }
+        String sql = "SELECT COUNT(*) FROM chat_workflows w " +
+                "JOIN chat_messages m ON m.id = w.message_id " +
+                "JOIN chat_conversations c ON c.id = m.conversation_id " +
+                "WHERE c.company_owner = ? AND w.status = 'PENDING'";
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, user.companyOwner);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? rs.getInt(1) : 0;
             }
@@ -403,13 +420,13 @@ final class ChatService {
                     ps.setLong(1, taskId);
                     try (ResultSet rs = ps.executeQuery()) {
                         if (!rs.next()) {
-                            throw new IllegalArgumentException("Khong tim thay cong viec.");
+                            throw new IllegalArgumentException("Không tìm thấy công việc.");
                         }
                         task = mapTask(rs);
                     }
                 }
                 if (!isMember(task.conversationId, user.username)) {
-                    throw new IllegalArgumentException("Ban khong thuoc hoi thoai nay.");
+                    throw new IllegalArgumentException("Bạn không thuộc hội thoại này.");
                 }
                 String oldStatus = task.status;
                 try (PreparedStatement ps = c.prepareStatement("UPDATE chat_tasks SET status = ?, updated_at = NOW() WHERE id = ?")) {
@@ -433,10 +450,10 @@ final class ChatService {
 
     long createWorkflow(CurrentUser user, long conversationId, String workflowType, LocalDate workDate, String shift) throws Exception {
         if (user.employeeId == null || user.employeeId.isBlank()) {
-            throw new IllegalArgumentException("Chi nhan vien moi tao duoc yeu cau workflow.");
+            throw new IllegalArgumentException("Chỉ nhân viên mới tạo được yêu cầu workflow.");
         }
         if (workDate == null) {
-            throw new IllegalArgumentException("Chua chon ngay.");
+            throw new IllegalArgumentException("Chưa chọn ngày.");
         }
         String safeType = "SHIFT_CHANGE".equals(workflowType) ? "SHIFT_CHANGE" : "OT";
         String safeShift = shift == null || shift.isBlank() ? ("OT".equals(safeType) ? "Tăng ca" : "Đổi ca") : shift.trim();
@@ -475,9 +492,67 @@ final class ChatService {
         }
     }
 
+    long createBusinessWorkflow(CurrentUser user, long conversationId, String workflowType, LocalDate workDate, String content) throws Exception {
+        if (user.employeeId == null || user.employeeId.isBlank()) {
+            throw new IllegalArgumentException("Chỉ nhân viên mới tạo được yêu cầu workflow.");
+        }
+        if (workDate == null) {
+            throw new IllegalArgumentException("Chưa chọn ngày.");
+        }
+        String safeType = switch (workflowType == null ? "" : workflowType) {
+            case "SHIFT_CHANGE" -> "SHIFT_CHANGE";
+            case "LEAVE" -> "LEAVE";
+            default -> "OT";
+        };
+        String defaultContent = switch (safeType) {
+            case "SHIFT_CHANGE" -> "Đổi ca";
+            case "LEAVE" -> "Nghỉ phép";
+            default -> "Tăng ca";
+        };
+        String safeContent = content == null || content.isBlank() ? defaultContent : content.trim();
+        String workflowName = switch (safeType) {
+            case "SHIFT_CHANGE" -> "Xin đổi ca";
+            case "LEAVE" -> "Xin nghỉ phép";
+            default -> "Xin tăng ca";
+        };
+        String body = workflowName + " ngày " + workDate + " - " + safeContent;
+        String metadata = "{\"employeeId\":\"" + user.employeeId + "\",\"date\":\"" + workDate + "\",\"shift\":\"" + safeContent + "\"}";
+        try (Connection c = db.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                long messageId;
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO chat_messages (conversation_id, sender_username, body, message_type, metadata_json, workflow_status, created_at, updated_at) " +
+                                "VALUES (?, ?, ?, 'WORKFLOW_CARD', ?, 'PENDING', NOW(), NOW())",
+                        Statement.RETURN_GENERATED_KEYS)) {
+                    ps.setLong(1, conversationId);
+                    ps.setString(2, user.username);
+                    ps.setString(3, body);
+                    ps.setString(4, metadata);
+                    ps.executeUpdate();
+                    messageId = generatedId(ps);
+                }
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO chat_workflows (message_id, workflow_type, employee_id, work_date, payload_json, status, created_at) VALUES (?, ?, ?, ?, ?, 'PENDING', NOW())")) {
+                    ps.setLong(1, messageId);
+                    ps.setString(2, safeType);
+                    ps.setString(3, user.employeeId);
+                    ps.setDate(4, java.sql.Date.valueOf(workDate));
+                    ps.setString(5, metadata);
+                    ps.executeUpdate();
+                }
+                c.commit();
+                return messageId;
+            } catch (Exception e) {
+                c.rollback();
+                throw e;
+            }
+        }
+    }
+
     void decideWorkflow(CurrentUser user, long messageId, boolean approved) throws Exception {
         if (!user.canManageGroups()) {
-            throw new IllegalArgumentException("Chi Admin hoac Truong phong duoc duyet workflow.");
+            throw new IllegalArgumentException("Chỉ Admin hoặc Trưởng phòng được duyệt workflow.");
         }
         try (Connection c = db.getConnection()) {
             c.setAutoCommit(false);
@@ -489,7 +564,7 @@ final class ChatService {
                     ps.setLong(1, messageId);
                     try (ResultSet rs = ps.executeQuery()) {
                         if (!rs.next()) {
-                            throw new IllegalArgumentException("Khong tim thay workflow.");
+                            throw new IllegalArgumentException("Không tìm thấy workflow.");
                         }
                         employeeId = rs.getString("employee_id");
                         workDate = rs.getDate("work_date").toLocalDate();
@@ -527,6 +602,93 @@ final class ChatService {
         }
     }
 
+    boolean decideBusinessWorkflow(CurrentUser user, long messageId, boolean approved) throws Exception {
+        if (!user.canManageGroups()) {
+            throw new IllegalArgumentException("Chỉ Admin hoặc Trưởng phòng được duyệt workflow.");
+        }
+        try (Connection c = db.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                boolean synced = false;
+                String employeeId;
+                LocalDate workDate;
+                String payload;
+                String workflowType;
+                try (PreparedStatement ps = c.prepareStatement("SELECT workflow_type, employee_id, work_date, payload_json FROM chat_workflows WHERE message_id = ? FOR UPDATE")) {
+                    ps.setLong(1, messageId);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) {
+                            throw new IllegalArgumentException("Không tìm thấy workflow.");
+                        }
+                        workflowType = rs.getString("workflow_type");
+                        employeeId = rs.getString("employee_id");
+                        workDate = rs.getDate("work_date").toLocalDate();
+                        payload = rs.getString("payload_json");
+                    }
+                }
+                String status = approved ? "APPROVED" : "REJECTED";
+                try (PreparedStatement ps = c.prepareStatement("UPDATE chat_workflows SET status = ?, decided_by = ?, decided_at = NOW() WHERE message_id = ?")) {
+                    ps.setString(1, status);
+                    ps.setString(2, user.username);
+                    ps.setLong(3, messageId);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = c.prepareStatement("UPDATE chat_messages SET workflow_status = ?, updated_at = NOW() WHERE id = ?")) {
+                    ps.setString(1, status);
+                    ps.setLong(2, messageId);
+                    ps.executeUpdate();
+                }
+                if (approved) {
+                    Map<String, String> meta = chatshared.JsonUtil.parseObject(payload);
+                    synced = applyApprovedWorkflow(c, workflowType, employeeId, workDate, meta.getOrDefault("shift", "Đã duyệt qua chat"));
+                }
+                c.commit();
+                return synced;
+            } catch (Exception e) {
+                c.rollback();
+                throw e;
+            }
+        }
+    }
+
+    private boolean applyApprovedWorkflow(Connection c, String workflowType, String employeeId, LocalDate workDate, String value) throws Exception {
+        if (tableExists(c, "schedules")) {
+            String shift = "LEAVE".equals(workflowType) ? "Nghỉ phép: " + value : value;
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT INTO schedules (employee_id, work_date, shift) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE shift = VALUES(shift)")) {
+                ps.setString(1, employeeId);
+                ps.setDate(2, java.sql.Date.valueOf(workDate));
+                ps.setString(3, shift);
+                ps.executeUpdate();
+                return true;
+            }
+        }
+        if (tableExists(c, "timekeeping")) {
+            String note = "LEAVE".equals(workflowType) ? "LEAVE_APPROVED: " + value : workflowType + "_APPROVED: " + value;
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT INTO timekeeping (employee_id, work_date, note) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE note = VALUES(note)")) {
+                ps.setString(1, employeeId);
+                ps.setDate(2, java.sql.Date.valueOf(workDate));
+                ps.setString(3, note);
+                ps.executeUpdate();
+                return true;
+            }
+        }
+        System.err.println("Workflow approved in chat only: schedules/timekeeping table was not found for payroll/timekeeping sync.");
+        return false;
+    }
+
+    private boolean tableExists(Connection c, String tableName) throws Exception {
+        try (ResultSet rs = c.getMetaData().getTables(null, null, tableName, null)) {
+            if (rs.next()) {
+                return true;
+            }
+        }
+        try (ResultSet rs = c.getMetaData().getTables(null, null, tableName.toUpperCase(), null)) {
+            return rs.next();
+        }
+    }
+
     String salaryDetail(CurrentUser user, String metadataJson) throws Exception {
         Map<String, String> meta = chatshared.JsonUtil.parseObject(metadataJson);
         String employeeId = meta.getOrDefault("employeeId", "");
@@ -544,7 +706,7 @@ final class ChatService {
             ps.setString(5, user.username);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
-                    throw new IllegalArgumentException("Khong tim thay phieu luong hoac ban khong co quyen xem.");
+                    throw new IllegalArgumentException("Không tìm thấy phiếu lương hoặc bạn không có quyền xem.");
                 }
                 return "Nhân viên: " + rs.getString("name") +
                         "\nTháng: " + month + "/" + year +
@@ -557,7 +719,7 @@ final class ChatService {
 
     List<ChatMessage> listMessages(CurrentUser user, long conversationId, String search) throws Exception {
         if (!isMember(conversationId, user.username)) {
-            throw new IllegalArgumentException("Ban khong thuoc hoi thoai nay.");
+            throw new IllegalArgumentException("Bạn không thuộc hội thoại này.");
         }
         List<ChatMessage> messages = new ArrayList<>();
         String filter = search == null || search.isBlank() ? "" : " AND (m.body LIKE ? OR a.original_name LIKE ?)";
@@ -581,6 +743,7 @@ final class ChatService {
                     ChatMessage msg = mapMessage(rs);
                     msg.attachments.addAll(listAttachments(c, msg.id));
                     msg.seenCount = seenCount(c, msg.id);
+                    msg.reactionSummary = reactionSummary(c, msg.id);
                     messages.add(msg);
                 }
             }
@@ -589,9 +752,138 @@ final class ChatService {
         return messages;
     }
 
+    List<ChatMessage> searchMessages(CurrentUser user, long conversationId, MessageSearchCriteria criteria) throws Exception {
+        if (!isMember(conversationId, user.username)) {
+            throw new IllegalArgumentException("Bạn không thuộc hội thoại này.");
+        }
+        MessageSearchCriteria q = criteria == null ? new MessageSearchCriteria() : criteria;
+        List<Object> params = new ArrayList<>();
+        StringBuilder where = new StringBuilder(" WHERE m.conversation_id = ? AND m.deleted_at IS NULL");
+        params.add(conversationId);
+        if (q.keyword != null && !q.keyword.isBlank()) {
+            where.append(" AND (m.body LIKE ? OR a.original_name LIKE ?)");
+            String like = "%" + q.keyword.trim() + "%";
+            params.add(like);
+            params.add(like);
+        }
+        if (q.senderUsername != null && !q.senderUsername.isBlank()) {
+            where.append(" AND m.sender_username = ?");
+            params.add(q.senderUsername.trim());
+        }
+        if (q.from != null) {
+            where.append(" AND m.created_at >= ?");
+            params.add(Timestamp.valueOf(q.from));
+        }
+        if (q.to != null) {
+            where.append(" AND m.created_at <= ?");
+            params.add(Timestamp.valueOf(q.to));
+        }
+        if (q.onlyFiles) {
+            where.append(" AND a.id IS NOT NULL");
+        }
+        if (q.onlyPinned) {
+            where.append(" AND m.pinned = TRUE");
+        }
+        if (q.onlyMentions) {
+            where.append(" AND men.mentioned_username = ?");
+            params.add(user.username);
+        }
+        if (q.onlyTasks) {
+            where.append(" AND (m.body LIKE '%[CÔNG VIỆC]%' OR m.message_type IN ('TASK_CARD','WORKFLOW_CARD'))");
+        }
+
+        String sql = "SELECT DISTINCT m.*, COALESCE(u.full_name, e.name, m.sender_username) sender_name, r.body reply_body " +
+                "FROM chat_messages m " +
+                "LEFT JOIN users u ON u.username = m.sender_username " +
+                "LEFT JOIN employees e ON e.login_username = m.sender_username " +
+                "LEFT JOIN chat_messages r ON r.id = m.reply_to_id " +
+                "LEFT JOIN chat_attachments a ON a.message_id = m.id " +
+                "LEFT JOIN chat_mentions men ON men.message_id = m.id " +
+                where +
+                " ORDER BY m.pinned DESC, m.id ASC LIMIT 500";
+        List<ChatMessage> messages = new ArrayList<>();
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            for (int i = 0; i < params.size(); i++) {
+                Object value = params.get(i);
+                if (value instanceof Timestamp ts) {
+                    ps.setTimestamp(i + 1, ts);
+                } else if (value instanceof Long l) {
+                    ps.setLong(i + 1, l);
+                } else {
+                    ps.setString(i + 1, String.valueOf(value));
+                }
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ChatMessage msg = mapMessage(rs);
+                    msg.attachments.addAll(listAttachments(c, msg.id));
+                    msg.seenCount = seenCount(c, msg.id);
+                    msg.reactionSummary = reactionSummary(c, msg.id);
+                    messages.add(msg);
+                }
+            }
+            if (q.includeArchive) {
+                String archiveSql = "SELECT m.*, COALESCE(u.full_name, e.name, m.sender_username) sender_name, NULL reply_body " +
+                        "FROM chat_messages_archive m " +
+                        "LEFT JOIN users u ON u.username = m.sender_username " +
+                        "LEFT JOIN employees e ON e.login_username = m.sender_username " +
+                        "WHERE m.conversation_id = ? AND (? = '' OR m.body LIKE ?) " +
+                        "ORDER BY m.id ASC LIMIT 500";
+                try (PreparedStatement archive = c.prepareStatement(archiveSql)) {
+                    String keyword = q.keyword == null ? "" : q.keyword.trim();
+                    archive.setLong(1, conversationId);
+                    archive.setString(2, keyword);
+                    archive.setString(3, "%" + keyword + "%");
+                    try (ResultSet rs = archive.executeQuery()) {
+                        while (rs.next() && messages.size() < 500) {
+                            ChatMessage msg = mapMessage(rs);
+                            msg.reactionSummary = "";
+                            messages.add(msg);
+                        }
+                    }
+                }
+            }
+        }
+        markRead(user, conversationId);
+        return messages;
+    }
+
+    int archiveOldMessages(CurrentUser user, int olderThanDays) throws Exception {
+        if (!user.isAdmin()) {
+            throw new IllegalArgumentException("Chỉ admin được archive tin nhắn.");
+        }
+        int days = Math.max(30, olderThanDays);
+        try (Connection c = db.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                int inserted;
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT IGNORE INTO chat_messages_archive SELECT m.* FROM chat_messages m " +
+                                "JOIN chat_conversations cv ON cv.id = m.conversation_id " +
+                                "WHERE cv.company_owner = ? AND m.created_at < DATE_SUB(NOW(), INTERVAL ? DAY)")) {
+                    ps.setString(1, user.companyOwner);
+                    ps.setInt(2, days);
+                    inserted = ps.executeUpdate();
+                }
+                try (PreparedStatement ps = c.prepareStatement(
+                        "DELETE m FROM chat_messages m JOIN chat_conversations cv ON cv.id = m.conversation_id " +
+                                "WHERE cv.company_owner = ? AND m.created_at < DATE_SUB(NOW(), INTERVAL ? DAY)")) {
+                    ps.setString(1, user.companyOwner);
+                    ps.setInt(2, days);
+                    ps.executeUpdate();
+                }
+                c.commit();
+                return inserted;
+            } catch (Exception e) {
+                c.rollback();
+                throw e;
+            }
+        }
+    }
+
     long sendMessage(CurrentUser user, long conversationId, String body, Long replyToId, List<File> files) throws Exception {
         if (!isMember(conversationId, user.username)) {
-            throw new IllegalArgumentException("Ban khong thuoc hoi thoai nay.");
+            throw new IllegalArgumentException("Bạn không thuộc hội thoại này.");
         }
         boolean hasText = body != null && !body.isBlank();
         boolean hasFiles = files != null && !files.isEmpty();
@@ -651,9 +943,124 @@ final class ChatService {
         }
     }
 
+    long createPollMessage(CurrentUser user, long conversationId, String question, List<String> options) throws Exception {
+        if (!isMember(conversationId, user.username)) {
+            throw new IllegalArgumentException("Bạn không thuộc hội thoại này.");
+        }
+        if (question == null || question.isBlank()) {
+            throw new IllegalArgumentException("Câu hỏi bình chọn không được để trống.");
+        }
+        List<String> cleanOptions = options == null ? List.of() : options.stream()
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .distinct()
+                .toList();
+        if (cleanOptions.size() < 2) {
+            throw new IllegalArgumentException("Vote cần ít nhất 2 lựa chọn.");
+        }
+        String body = "[VOTE] " + question.trim() + " | " + String.join(" | ", cleanOptions);
+        try (Connection c = db.getConnection()) {
+            c.setAutoCommit(false);
+            try {
+                long messageId;
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO chat_messages (conversation_id, sender_username, body, message_type, created_at, updated_at) VALUES (?, ?, ?, 'POLL', NOW(), NOW())",
+                        Statement.RETURN_GENERATED_KEYS)) {
+                    ps.setLong(1, conversationId);
+                    ps.setString(2, user.username);
+                    ps.setString(3, body);
+                    ps.executeUpdate();
+                    messageId = generatedId(ps);
+                }
+                long pollId;
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO chat_polls (message_id, question, created_by, created_at) VALUES (?, ?, ?, NOW())",
+                        Statement.RETURN_GENERATED_KEYS)) {
+                    ps.setLong(1, messageId);
+                    ps.setString(2, question.trim());
+                    ps.setString(3, user.username);
+                    ps.executeUpdate();
+                    pollId = generatedId(ps);
+                }
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO chat_poll_options (poll_id, option_text, sort_order) VALUES (?, ?, ?)")) {
+                    for (int i = 0; i < cleanOptions.size(); i++) {
+                        ps.setLong(1, pollId);
+                        ps.setString(2, cleanOptions.get(i));
+                        ps.setInt(3, i);
+                        ps.addBatch();
+                    }
+                    ps.executeBatch();
+                }
+                try (PreparedStatement ps = c.prepareStatement("UPDATE chat_conversations SET updated_at = NOW() WHERE id = ?")) {
+                    ps.setLong(1, conversationId);
+                    ps.executeUpdate();
+                }
+                c.commit();
+                return messageId;
+            } catch (Exception e) {
+                c.rollback();
+                throw e;
+            }
+        }
+    }
+
+    List<PollOption> listPollOptions(CurrentUser user, long messageId) throws Exception {
+        long conversationId = conversationIdForMessage(messageId);
+        if (!isMember(conversationId, user.username)) {
+            throw new IllegalArgumentException("Bạn không thuộc hội thoại này.");
+        }
+        List<PollOption> result = new ArrayList<>();
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "SELECT p.id poll_id, o.id option_id, o.option_text, COUNT(v.username) vote_count, " +
+                        "SUM(CASE WHEN v.username = ? THEN 1 ELSE 0 END) selected_by_me " +
+                        "FROM chat_polls p JOIN chat_poll_options o ON o.poll_id = p.id " +
+                        "LEFT JOIN chat_poll_votes v ON v.option_id = o.id " +
+                        "WHERE p.message_id = ? GROUP BY p.id, o.id, o.option_text, o.sort_order ORDER BY o.sort_order ASC")) {
+            ps.setString(1, user.username);
+            ps.setLong(2, messageId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    PollOption option = new PollOption();
+                    option.pollId = rs.getLong("poll_id");
+                    option.optionId = rs.getLong("option_id");
+                    option.optionText = rs.getString("option_text");
+                    option.voteCount = rs.getInt("vote_count");
+                    option.selectedByMe = rs.getInt("selected_by_me") > 0;
+                    result.add(option);
+                }
+            }
+        }
+        return result;
+    }
+
+    void castPollVote(CurrentUser user, long pollId, long optionId) throws Exception {
+        try (Connection c = db.getConnection(); PreparedStatement check = c.prepareStatement(
+                "SELECT m.conversation_id FROM chat_polls p JOIN chat_messages m ON m.id = p.message_id " +
+                        "JOIN chat_poll_options o ON o.poll_id = p.id AND o.id = ? WHERE p.id = ?")) {
+            check.setLong(1, optionId);
+            check.setLong(2, pollId);
+            long conversationId = 0;
+            try (ResultSet rs = check.executeQuery()) {
+                if (rs.next()) conversationId = rs.getLong(1);
+            }
+            if (conversationId == 0 || !isMember(conversationId, user.username)) {
+                throw new IllegalArgumentException("Vote không hợp lệ.");
+            }
+        }
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "INSERT INTO chat_poll_votes (poll_id, option_id, username, voted_at) VALUES (?, ?, ?, NOW()) " +
+                        "ON DUPLICATE KEY UPDATE option_id = VALUES(option_id), voted_at = NOW()")) {
+            ps.setLong(1, pollId);
+            ps.setLong(2, optionId);
+            ps.setString(3, user.username);
+            ps.executeUpdate();
+        }
+    }
+
     void editMessage(CurrentUser user, long messageId, String body) throws Exception {
         if (body == null || body.isBlank()) {
-            throw new IllegalArgumentException("Noi dung khong duoc de trong.");
+            throw new IllegalArgumentException("Nội dung không được để trống.");
         }
         try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
                 "UPDATE chat_messages SET body = ?, edited = TRUE, updated_at = NOW() WHERE id = ? AND sender_username = ? AND recalled = FALSE")) {
@@ -661,7 +1068,7 @@ final class ChatService {
             ps.setLong(2, messageId);
             ps.setString(3, user.username);
             if (ps.executeUpdate() == 0) {
-                throw new IllegalArgumentException("Chi sua duoc tin cua ban va chua bi thu hoi.");
+                throw new IllegalArgumentException("Chỉ sửa được tin của bạn và chưa bị thu hồi.");
             }
         }
     }
@@ -672,7 +1079,7 @@ final class ChatService {
             ps.setLong(1, messageId);
             ps.setString(2, user.username);
             if (ps.executeUpdate() == 0) {
-                throw new IllegalArgumentException("Chi thu hoi duoc tin cua ban.");
+                throw new IllegalArgumentException("Chỉ thu hồi được tin của bạn.");
             }
         }
     }
@@ -979,6 +1386,20 @@ final class ChatService {
         }
     }
 
+    private String reactionSummary(Connection c, long messageId) throws Exception {
+        List<String> parts = new ArrayList<>();
+        try (PreparedStatement ps = c.prepareStatement(
+                "SELECT emoji, COUNT(*) total FROM chat_message_reactions WHERE message_id = ? GROUP BY emoji ORDER BY total DESC, emoji ASC")) {
+            ps.setLong(1, messageId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    parts.add(rs.getString("emoji") + " " + rs.getInt("total"));
+                }
+            }
+        }
+        return String.join("  ", parts);
+    }
+
     private long conversationIdForMessage(long messageId) throws Exception {
         try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement("SELECT conversation_id FROM chat_messages WHERE id = ?")) {
             ps.setLong(1, messageId);
@@ -1047,11 +1468,11 @@ final class ChatService {
 
     void addReaction(CurrentUser user, long messageId, String emoji) throws Exception {
         if (emoji == null || emoji.isBlank()) {
-            throw new IllegalArgumentException("Reaction khong hop le.");
+            throw new IllegalArgumentException("Reaction không hợp lệ.");
         }
         long conversationId = conversationIdForMessage(messageId);
         if (!isMember(conversationId, user.username)) {
-            throw new IllegalArgumentException("Ban khong thuoc hoi thoai nay.");
+            throw new IllegalArgumentException("Bạn không thuộc hội thoại này.");
         }
         try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
                 "INSERT INTO chat_message_reactions (message_id, username, emoji, created_at) VALUES (?, ?, ?, NOW()) " +
@@ -1074,10 +1495,10 @@ final class ChatService {
 
     long scheduleMessage(CurrentUser user, long conversationId, String body, LocalDateTime scheduledAt) throws Exception {
         if (!isMember(conversationId, user.username)) {
-            throw new IllegalArgumentException("Ban khong thuoc hoi thoai nay.");
+            throw new IllegalArgumentException("Bạn không thuộc hội thoại này.");
         }
         if (body == null || body.isBlank()) {
-            throw new IllegalArgumentException("Noi dung hen gio khong duoc de trong.");
+            throw new IllegalArgumentException("Nội dung hẹn giờ không được để trống.");
         }
         if (scheduledAt == null || !scheduledAt.isAfter(LocalDateTime.now())) {
             throw new IllegalArgumentException("Thoi diem gui phai nam trong tuong lai.");
@@ -1096,12 +1517,62 @@ final class ChatService {
         }
     }
 
+    List<ScheduledMessage> listScheduledMessages(CurrentUser user) throws Exception {
+        List<ScheduledMessage> result = new ArrayList<>();
+        String sql = "SELECT s.*, c.title conversation_title FROM chat_scheduled_messages s " +
+                "JOIN chat_conversations c ON c.id = s.conversation_id " +
+                "JOIN chat_members m ON m.conversation_id = s.conversation_id AND m.username = ? " +
+                "WHERE s.sender_username = ? OR ? = TRUE " +
+                "ORDER BY s.scheduled_at DESC LIMIT 300";
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, user.username);
+            ps.setString(2, user.username);
+            ps.setBoolean(3, user.isAdmin());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) result.add(mapScheduledMessage(rs));
+            }
+        }
+        return result;
+    }
+
+    void updateScheduledMessage(CurrentUser user, long id, String body, LocalDateTime scheduledAt) throws Exception {
+        if (body == null || body.isBlank()) {
+            throw new IllegalArgumentException("Nội dung hẹn giờ không được để trống.");
+        }
+        if (scheduledAt == null || !scheduledAt.isAfter(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Thời điểm gửi phải nằm trong tương lai.");
+        }
+        String sql = "UPDATE chat_scheduled_messages s JOIN chat_members m ON m.conversation_id = s.conversation_id AND m.username = ? " +
+                "SET s.body = ?, s.scheduled_at = ? WHERE s.id = ? AND s.status = 'PENDING' AND (s.sender_username = ? OR ? = TRUE)";
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, user.username);
+            ps.setString(2, body.trim());
+            ps.setTimestamp(3, Timestamp.valueOf(scheduledAt));
+            ps.setLong(4, id);
+            ps.setString(5, user.username);
+            ps.setBoolean(6, user.isAdmin());
+            if (ps.executeUpdate() == 0) throw new IllegalArgumentException("Không thể sửa tin hẹn giờ này.");
+        }
+    }
+
+    void cancelScheduledMessage(CurrentUser user, long id) throws Exception {
+        String sql = "UPDATE chat_scheduled_messages s JOIN chat_members m ON m.conversation_id = s.conversation_id AND m.username = ? " +
+                "SET s.status = 'CANCELLED' WHERE s.id = ? AND s.status = 'PENDING' AND (s.sender_username = ? OR ? = TRUE)";
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, user.username);
+            ps.setLong(2, id);
+            ps.setString(3, user.username);
+            ps.setBoolean(4, user.isAdmin());
+            if (ps.executeUpdate() == 0) throw new IllegalArgumentException("Không thể hủy tin hẹn giờ này.");
+        }
+    }
+
     long createReminder(CurrentUser user, Long conversationId, String title, String body, LocalDateTime remindAt) throws Exception {
         if (conversationId != null && !isMember(conversationId, user.username)) {
-            throw new IllegalArgumentException("Ban khong thuoc hoi thoai nay.");
+            throw new IllegalArgumentException("Bạn không thuộc hội thoại này.");
         }
         if (title == null || title.isBlank()) {
-            throw new IllegalArgumentException("Tieu de nhac viec khong duoc de trong.");
+            throw new IllegalArgumentException("Tiêu đề nhắc việc không được để trống.");
         }
         if (remindAt == null || !remindAt.isAfter(LocalDateTime.now())) {
             throw new IllegalArgumentException("Thoi diem nhac phai nam trong tuong lai.");
@@ -1121,12 +1592,157 @@ final class ChatService {
         }
     }
 
+    List<ChatReminder> listReminders(CurrentUser user) throws Exception {
+        List<ChatReminder> result = new ArrayList<>();
+        String sql = "SELECT r.*, c.title conversation_title FROM chat_reminders r " +
+                "LEFT JOIN chat_conversations c ON c.id = r.conversation_id " +
+                "WHERE r.username = ? OR (? = TRUE AND (c.company_owner = ? OR r.conversation_id IS NULL)) " +
+                "ORDER BY r.remind_at DESC LIMIT 300";
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, user.username);
+            ps.setBoolean(2, user.isAdmin());
+            ps.setString(3, user.companyOwner);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) result.add(mapReminder(rs));
+            }
+        }
+        return result;
+    }
+
+    void updateReminder(CurrentUser user, long id, String title, String body, LocalDateTime remindAt) throws Exception {
+        if (title == null || title.isBlank()) {
+            throw new IllegalArgumentException("Tiêu đề nhắc việc không được để trống.");
+        }
+        if (remindAt == null || !remindAt.isAfter(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Thời điểm nhắc phải nằm trong tương lai.");
+        }
+        String sql = "UPDATE chat_reminders r LEFT JOIN chat_conversations c ON c.id = r.conversation_id " +
+                "SET r.title = ?, r.body = ?, r.remind_at = ? " +
+                "WHERE r.id = ? AND r.status = 'PENDING' AND (r.username = ? OR (? = TRUE AND (c.company_owner = ? OR r.conversation_id IS NULL)))";
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, title.trim());
+            ps.setString(2, body == null ? "" : body.trim());
+            ps.setTimestamp(3, Timestamp.valueOf(remindAt));
+            ps.setLong(4, id);
+            ps.setString(5, user.username);
+            ps.setBoolean(6, user.isAdmin());
+            ps.setString(7, user.companyOwner);
+            if (ps.executeUpdate() == 0) throw new IllegalArgumentException("Không thể sửa nhắc việc này.");
+        }
+    }
+
+    void cancelReminder(CurrentUser user, long id) throws Exception {
+        String sql = "UPDATE chat_reminders r LEFT JOIN chat_conversations c ON c.id = r.conversation_id " +
+                "SET r.status = 'CANCELLED' " +
+                "WHERE r.id = ? AND r.status = 'PENDING' AND (r.username = ? OR (? = TRUE AND (c.company_owner = ? OR r.conversation_id IS NULL)))";
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setLong(1, id);
+            ps.setString(2, user.username);
+            ps.setBoolean(3, user.isAdmin());
+            ps.setString(4, user.companyOwner);
+            if (ps.executeUpdate() == 0) throw new IllegalArgumentException("Không thể hủy nhắc việc này.");
+        }
+    }
+
+    List<ReactionDetail> listReactionDetails(CurrentUser user, long messageId) throws Exception {
+        long conversationId = conversationIdForMessage(messageId);
+        if (!isMember(conversationId, user.username)) {
+            throw new IllegalArgumentException("Bạn không thuộc hội thoại này.");
+        }
+        List<ReactionDetail> result = new ArrayList<>();
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "SELECT r.emoji, r.username, COALESCE(e.name, u.full_name, r.username) display_name, r.created_at " +
+                        "FROM chat_message_reactions r LEFT JOIN users u ON u.username = r.username " +
+                        "LEFT JOIN employees e ON e.login_username = r.username WHERE r.message_id = ? ORDER BY r.created_at DESC")) {
+            ps.setLong(1, messageId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ReactionDetail item = new ReactionDetail();
+                    item.emoji = rs.getString("emoji");
+                    item.username = rs.getString("username");
+                    item.displayName = rs.getString("display_name");
+                    Timestamp ts = rs.getTimestamp("created_at");
+                    item.createdAt = ts == null ? null : ts.toLocalDateTime();
+                    result.add(item);
+                }
+            }
+        }
+        return result;
+    }
+
+    List<MentionItem> listMentionsForUser(CurrentUser user) throws Exception {
+        List<MentionItem> result = new ArrayList<>();
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "SELECT m.id message_id, m.conversation_id, c.title conversation_title, m.sender_username, " +
+                        "COALESCE(e.name, u.full_name, m.sender_username) sender_name, m.body, m.created_at " +
+                        "FROM chat_mentions men JOIN chat_messages m ON m.id = men.message_id " +
+                        "JOIN chat_conversations c ON c.id = m.conversation_id " +
+                        "JOIN chat_members cm ON cm.conversation_id = c.id AND cm.username = ? " +
+                        "LEFT JOIN users u ON u.username = m.sender_username " +
+                        "LEFT JOIN employees e ON e.login_username = m.sender_username " +
+                        "WHERE men.mentioned_username = ? ORDER BY m.created_at DESC LIMIT 200")) {
+            ps.setString(1, user.username);
+            ps.setString(2, user.username);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    MentionItem item = new MentionItem();
+                    item.messageId = rs.getLong("message_id");
+                    item.conversationId = rs.getLong("conversation_id");
+                    item.conversationTitle = rs.getString("conversation_title");
+                    item.senderUsername = rs.getString("sender_username");
+                    item.senderName = rs.getString("sender_name");
+                    item.body = rs.getString("body");
+                    Timestamp ts = rs.getTimestamp("created_at");
+                    item.createdAt = ts == null ? null : ts.toLocalDateTime();
+                    result.add(item);
+                }
+            }
+        }
+        return result;
+    }
+
+    private static ScheduledMessage mapScheduledMessage(ResultSet rs) throws Exception {
+        ScheduledMessage item = new ScheduledMessage();
+        item.id = rs.getLong("id");
+        item.conversationId = rs.getLong("conversation_id");
+        item.conversationTitle = rs.getString("conversation_title");
+        item.senderUsername = rs.getString("sender_username");
+        item.body = rs.getString("body");
+        item.status = rs.getString("status");
+        Timestamp scheduled = rs.getTimestamp("scheduled_at");
+        item.scheduledAt = scheduled == null ? null : scheduled.toLocalDateTime();
+        Timestamp sent = rs.getTimestamp("sent_at");
+        item.sentAt = sent == null ? null : sent.toLocalDateTime();
+        Timestamp created = rs.getTimestamp("created_at");
+        item.createdAt = created == null ? null : created.toLocalDateTime();
+        return item;
+    }
+
+    private static ChatReminder mapReminder(ResultSet rs) throws Exception {
+        ChatReminder item = new ChatReminder();
+        item.id = rs.getLong("id");
+        long conversationId = rs.getLong("conversation_id");
+        item.conversationId = rs.wasNull() ? null : conversationId;
+        item.conversationTitle = rs.getString("conversation_title");
+        item.username = rs.getString("username");
+        item.title = rs.getString("title");
+        item.body = rs.getString("body");
+        item.status = rs.getString("status");
+        Timestamp remind = rs.getTimestamp("remind_at");
+        item.remindAt = remind == null ? null : remind.toLocalDateTime();
+        Timestamp sent = rs.getTimestamp("sent_at");
+        item.sentAt = sent == null ? null : sent.toLocalDateTime();
+        Timestamp created = rs.getTimestamp("created_at");
+        item.createdAt = created == null ? null : created.toLocalDateTime();
+        return item;
+    }
+
     private static String normalizeStatus(String value) {
         String status = value == null ? "" : value.trim().toUpperCase();
         if (Set.of("TODO", "IN_PROGRESS", "REVIEW", "DONE").contains(status)) {
             return status;
         }
-        throw new IllegalArgumentException("Trang thai cong viec khong hop le.");
+        throw new IllegalArgumentException("Trạng thái công việc không hợp lệ.");
     }
 
     private static String normalizePriority(String value) {
@@ -1134,7 +1750,7 @@ final class ChatService {
         if (Set.of("LOW", "MEDIUM", "HIGH").contains(priority)) {
             return priority;
         }
-        throw new IllegalArgumentException("Do uu tien khong hop le.");
+        throw new IllegalArgumentException("Độ ưu tiên không hợp lệ.");
     }
 
     private static long generatedId(PreparedStatement ps) throws Exception {
@@ -1146,5 +1762,9 @@ final class ChatService {
 
     private static String directKey(String a, String b) {
         return a.compareToIgnoreCase(b) <= 0 ? a + "|" + b : b + "|" + a;
+    }
+
+    private static LocalDateTime timestampToLocalDateTime(Timestamp value) {
+        return value == null ? null : value.toLocalDateTime();
     }
 }

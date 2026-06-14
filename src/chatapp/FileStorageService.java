@@ -1,5 +1,8 @@
 package chatapp;
 
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -8,11 +11,13 @@ import java.time.LocalDate;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import javax.imageio.ImageIO;
 
 final class FileStorageService {
     private static final Set<String> BLOCKED = Set.of("exe", "bat", "cmd", "com", "scr", "ps1", "vbs", "js", "jar", "msi");
     private static final Set<String> IMAGES = Set.of("jpg", "jpeg", "png", "gif", "webp", "bmp");
     private static final Set<String> VIDEOS = Set.of("mp4", "mov", "avi", "mkv", "webm", "wmv");
+    private static final Set<String> AUDIOS = Set.of("wav", "aiff", "aif", "au");
 
     private final AppConfig config;
 
@@ -22,11 +27,11 @@ final class FileStorageService {
 
     StoredFile store(File source, CurrentUser user, long conversationId) throws Exception {
         if (source == null || !source.isFile()) {
-            throw new IllegalArgumentException("File khong hop le.");
+            throw new IllegalArgumentException("File không hợp lệ.");
         }
         String ext = extension(source.getName());
         if (BLOCKED.contains(ext)) {
-            throw new IllegalArgumentException("File ." + ext + " bi chan vi khong an toan.");
+            throw new IllegalArgumentException("File ." + ext + " bị chặn vì không an toàn.");
         }
         String type = fileType(ext);
         long size = source.length();
@@ -46,8 +51,38 @@ final class FileStorageService {
 
         String storedName = UUID.randomUUID() + (ext.isBlank() ? "" : "." + ext);
         Path target = dir.resolve(storedName);
-        Files.copy(source.toPath(), target, StandardCopyOption.REPLACE_EXISTING);
-        return new StoredFile(source.getName(), storedName, type, Files.probeContentType(target), size, target.toAbsolutePath().toString());
+        if (!compressImageIfUseful(source, target, ext, type, size)) {
+            Files.copy(source.toPath(), target, StandardCopyOption.REPLACE_EXISTING);
+        }
+        long finalSize = Files.size(target);
+        return new StoredFile(source.getName(), storedName, type, Files.probeContentType(target), finalSize, target.toAbsolutePath().toString());
+    }
+
+    private boolean compressImageIfUseful(File source, Path target, String ext, String type, long size) {
+        if (!"IMAGE".equals(type) || size < 2L * 1024L * 1024L || !Set.of("jpg", "jpeg", "png", "bmp").contains(ext)) {
+            return false;
+        }
+        try {
+            BufferedImage original = ImageIO.read(source);
+            if (original == null) return false;
+            int max = Math.max(original.getWidth(), original.getHeight());
+            if (max <= 1600) return false;
+            double scale = 1600.0 / max;
+            int width = Math.max(1, (int) Math.round(original.getWidth() * scale));
+            int height = Math.max(1, (int) Math.round(original.getHeight() * scale));
+            BufferedImage resized = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = resized.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.drawImage(original, 0, 0, width, height, null);
+            g.dispose();
+            String format = "jpeg".equals(ext) ? "jpg" : ext;
+            return ImageIO.write(resized, format, target.toFile());
+        } catch (Exception e) {
+            System.err.println("Image compression skipped: " + e.getMessage());
+            return false;
+        }
     }
 
     boolean deleteQuietly(String path) {
@@ -66,6 +101,7 @@ final class FileStorageService {
     static String fileType(String ext) {
         if (IMAGES.contains(ext)) return "IMAGE";
         if (VIDEOS.contains(ext)) return "VIDEO";
+        if (AUDIOS.contains(ext)) return "AUDIO";
         return "FILE";
     }
 

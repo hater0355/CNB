@@ -64,6 +64,7 @@ public final class ChatServerApp {
             this.securityService = new SecurityService(db, config);
             scheduler.scheduleWithFixedDelay(this::sendBirthdayMessagesQuietly, 5, TimeUnit.HOURS.toSeconds(6), TimeUnit.SECONDS);
             scheduler.scheduleWithFixedDelay(this::processDueAutomationQuietly, 8, 15, TimeUnit.SECONDS);
+            scheduler.scheduleWithFixedDelay(this::archiveOldMessagesQuietly, 1, 24, TimeUnit.HOURS);
         }
 
         @Override
@@ -101,6 +102,11 @@ public final class ChatServerApp {
                 conn.close(1008, "auth required");
                 return;
             }
+            try {
+                securityService.touchUser(String.valueOf(conn.getAttachment()));
+            } catch (Exception e) {
+                System.err.println("Cannot update last seen: " + e.getMessage());
+            }
             broadcast(message);
         }
 
@@ -137,6 +143,38 @@ public final class ChatServerApp {
                 sendDueReminders();
             } catch (Exception e) {
                 System.err.println("Scheduled chat job error: " + e.getMessage());
+            }
+        }
+
+        private void archiveOldMessagesQuietly() {
+            try {
+                archiveOldMessages();
+            } catch (Exception e) {
+                System.err.println("Archive old messages error: " + e.getMessage());
+            }
+        }
+
+        private void archiveOldMessages() throws Exception {
+            int days = Math.max(30, config.retentionDays);
+            try (Connection c = db.getConnection()) {
+                c.setAutoCommit(false);
+                try {
+                    try (PreparedStatement ps = c.prepareStatement(
+                            "INSERT IGNORE INTO chat_messages_archive SELECT * FROM chat_messages " +
+                                    "WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)")) {
+                        ps.setInt(1, days);
+                        ps.executeUpdate();
+                    }
+                    try (PreparedStatement ps = c.prepareStatement(
+                            "DELETE FROM chat_messages WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)")) {
+                        ps.setInt(1, days);
+                        ps.executeUpdate();
+                    }
+                    c.commit();
+                } catch (Exception e) {
+                    c.rollback();
+                    throw e;
+                }
             }
         }
 

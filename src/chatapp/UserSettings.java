@@ -19,6 +19,9 @@ final class UserSettings {
     String chatBackground = "soft-blue";
     String presenceStatus = "ONLINE";
     boolean sidebarCollapsed = false;
+    boolean bandwidthSaving = false;
+    String slackWebhookUrl = "";
+    String teamsWebhookUrl = "";
     private final Map<String, String> avatarPaths = new HashMap<>();
 
     private final Path path;
@@ -41,6 +44,9 @@ final class UserSettings {
                 settings.chatBackground = props.getProperty("chat.background", "soft-blue");
                 settings.presenceStatus = props.getProperty("presence.status", "ONLINE");
                 settings.sidebarCollapsed = boolProp(props, "sidebar.collapsed", false);
+                settings.bandwidthSaving = boolProp(props, "bandwidth.saving", false);
+                settings.slackWebhookUrl = props.getProperty("integration.slack.webhook", "");
+                settings.teamsWebhookUrl = props.getProperty("integration.teams.webhook", "");
                 for (String key : props.stringPropertyNames()) {
                     if (key.startsWith("avatar.")) {
                         settings.avatarPaths.put(key.substring("avatar.".length()), props.getProperty(key, ""));
@@ -62,6 +68,9 @@ final class UserSettings {
         props.setProperty("chat.background", chatBackground == null || chatBackground.isBlank() ? "soft-blue" : chatBackground);
         props.setProperty("presence.status", presenceStatus == null || presenceStatus.isBlank() ? "ONLINE" : presenceStatus);
         props.setProperty("sidebar.collapsed", String.valueOf(sidebarCollapsed));
+        props.setProperty("bandwidth.saving", String.valueOf(bandwidthSaving));
+        props.setProperty("integration.slack.webhook", slackWebhookUrl == null ? "" : slackWebhookUrl);
+        props.setProperty("integration.teams.webhook", teamsWebhookUrl == null ? "" : teamsWebhookUrl);
         for (Map.Entry<String, String> entry : avatarPaths.entrySet()) {
             if (entry.getValue() != null && !entry.getValue().isBlank()) {
                 props.setProperty("avatar." + entry.getKey(), entry.getValue());

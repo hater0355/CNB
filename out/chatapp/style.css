@@ -668,6 +668,7 @@
 .bubble-mine .message-time,
 .bubble-mine .message-body,
 .bubble-mine .seen-label,
+.bubble-mine .reaction-summary,
 .bubble-mine .recalled-text {
     -fx-text-fill: white;
 }
@@ -682,6 +683,20 @@
     -fx-font-size: 14;
     -fx-text-fill: -app-text;
     -fx-line-spacing: 2;
+}
+
+.reaction-summary {
+    -fx-background-color: rgba(255,255,255,0.10);
+    -fx-background-radius: 999;
+    -fx-padding: 4 9 4 9;
+    -fx-font-size: 12;
+    -fx-font-weight: 800;
+    -fx-text-fill: #dbeafe;
+}
+
+.bubble-other .reaction-summary {
+    -fx-background-color: rgba(0,122,255,0.13);
+    -fx-text-fill: #93c5fd;
 }
 
 .message-more-button {
@@ -701,6 +716,11 @@
 .message-more-button:hover {
     -fx-opacity: 1;
     -fx-background-color: rgba(255,255,255,0.07);
+}
+
+.recording-button {
+    -fx-background-color: rgba(239,68,68,0.22);
+    -fx-border-color: rgba(248,113,113,0.55);
 }
 
 .pin-chip {

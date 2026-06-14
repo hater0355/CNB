@@ -80,6 +80,15 @@ public final class SecurityService {
         }
     }
 
+    public void touchUser(String username) throws Exception {
+        if (username == null || username.isBlank()) return;
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "UPDATE chat_sessions SET last_seen_at = NOW() WHERE username = ? AND revoked_at IS NULL AND expires_at > NOW()")) {
+            ps.setString(1, username);
+            ps.executeUpdate();
+        }
+    }
+
     public String generateTotpSecret() {
         byte[] data = new byte[20];
         RANDOM.nextBytes(data);

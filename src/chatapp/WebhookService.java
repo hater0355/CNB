@@ -27,6 +27,13 @@ final class WebhookService {
         notifyTeams(title, text);
     }
 
+    void notifyIntegrations(String title, String text, String slackWebhookUrl, String teamsWebhookUrl) {
+        String slack = slackWebhookUrl == null || slackWebhookUrl.isBlank() ? config.slackWebhookUrl : slackWebhookUrl;
+        String teams = teamsWebhookUrl == null || teamsWebhookUrl.isBlank() ? config.teamsWebhookUrl : teamsWebhookUrl;
+        post(slack, "{\"text\":\"" + json(title + "\n" + text) + "\"}");
+        post(teams, "{\"title\":\"" + json(title) + "\",\"text\":\"" + json(text) + "\"}");
+    }
+
     private void post(String url, String payload) {
         if (url == null || url.isBlank()) {
             return;

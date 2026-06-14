@@ -10,10 +10,11 @@ import java.util.Map;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 final class RealtimeClient implements WebSocket.Listener {
     private final AppConfig config;
-    private final Runnable onDataChanged;
+    private final Consumer<Map<String, String>> onEvent;
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "chat-realtime-client");
         thread.setDaemon(true);
@@ -24,9 +25,9 @@ final class RealtimeClient implements WebSocket.Listener {
     private volatile String token = "";
     private final StringBuilder buffer = new StringBuilder();
 
-    RealtimeClient(AppConfig config, Runnable onDataChanged) {
+    RealtimeClient(AppConfig config, Consumer<Map<String, String>> onEvent) {
         this.config = config;
-        this.onDataChanged = onDataChanged;
+        this.onEvent = onEvent;
     }
 
     void connect(String username, String token) {
@@ -41,6 +42,10 @@ final class RealtimeClient implements WebSocket.Listener {
             return;
         }
         ws.sendText(JsonUtil.stringify(JsonUtil.event(type, conversationId, username)), true);
+    }
+
+    void publishTyping(long conversationId) {
+        publish("TYPING", conversationId);
     }
 
     void close() {
@@ -86,8 +91,8 @@ final class RealtimeClient implements WebSocket.Listener {
             Map<String, String> event = JsonUtil.parseObject(buffer.toString());
             buffer.setLength(0);
             String type = event.getOrDefault("type", "");
-            if (type.endsWith("_UPDATED") || type.endsWith("_CREATED") || "BOT_BIRTHDAY".equals(type)) {
-                onDataChanged.run();
+            if (type.endsWith("_UPDATED") || type.endsWith("_CREATED") || "BOT_BIRTHDAY".equals(type) || "TYPING".equals(type)) {
+                onEvent.accept(event);
             }
         }
         webSocket.request(1);

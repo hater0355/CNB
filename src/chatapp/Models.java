@@ -115,3 +115,19 @@ final class TaskTarget {
         return employeeId + " - " + displayName;
     }
 }
+
+final class ChatTask {
+    long id;
+    long conversationId;
+    String title;
+    String description;
+    String assigneeUsername;
+    String assigneeName;
+    String createdBy;
+    String status;
+    String priority;
+    LocalDateTime deadline;
+    int kpiPoints;
+    LocalDateTime createdAt;
+    LocalDateTime updatedAt;
+}

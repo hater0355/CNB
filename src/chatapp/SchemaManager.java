@@ -79,6 +79,22 @@ public final class SchemaManager {
                     "created_at DATETIME NOT NULL," +
                     "INDEX idx_tasks_employee_status (employee_id, status)," +
                     "CONSTRAINT fk_tasks_message FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE SET NULL)");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_tasks (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                    "conversation_id BIGINT NOT NULL," +
+                    "title VARCHAR(255) NOT NULL," +
+                    "description TEXT," +
+                    "assignee_username VARCHAR(50) NOT NULL," +
+                    "created_by VARCHAR(50) NOT NULL," +
+                    "status VARCHAR(30) NOT NULL DEFAULT 'TODO'," +
+                    "priority VARCHAR(30) NOT NULL DEFAULT 'MEDIUM'," +
+                    "deadline DATETIME NULL," +
+                    "kpi_points INT NOT NULL DEFAULT 0," +
+                    "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP," +
+                    "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+                    "INDEX idx_chat_tasks_conversation_status_deadline (conversation_id, status, deadline)," +
+                    "INDEX idx_chat_tasks_assignee (assignee_username, status)," +
+                    "CONSTRAINT fk_chat_tasks_conversation FOREIGN KEY (conversation_id) REFERENCES chat_conversations(id) ON DELETE CASCADE)");
             st.execute("CREATE TABLE IF NOT EXISTS chat_polls (" +
                     "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
                     "message_id BIGINT NOT NULL," +

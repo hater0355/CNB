@@ -17,6 +17,8 @@ final class UserSettings {
     String theme = "light";
     String accentColor = "#0068ff";
     String chatBackground = "soft-blue";
+    String presenceStatus = "ONLINE";
+    boolean sidebarCollapsed = false;
     private final Map<String, String> avatarPaths = new HashMap<>();
 
     private final Path path;
@@ -37,6 +39,8 @@ final class UserSettings {
                 settings.theme = props.getProperty("ui.theme", "light");
                 settings.accentColor = props.getProperty("ui.accent", "#0068ff");
                 settings.chatBackground = props.getProperty("chat.background", "soft-blue");
+                settings.presenceStatus = props.getProperty("presence.status", "ONLINE");
+                settings.sidebarCollapsed = boolProp(props, "sidebar.collapsed", false);
                 for (String key : props.stringPropertyNames()) {
                     if (key.startsWith("avatar.")) {
                         settings.avatarPaths.put(key.substring("avatar.".length()), props.getProperty(key, ""));
@@ -56,6 +60,8 @@ final class UserSettings {
         props.setProperty("ui.theme", theme == null || theme.isBlank() ? "light" : theme);
         props.setProperty("ui.accent", accentColor == null || accentColor.isBlank() ? "#0068ff" : accentColor);
         props.setProperty("chat.background", chatBackground == null || chatBackground.isBlank() ? "soft-blue" : chatBackground);
+        props.setProperty("presence.status", presenceStatus == null || presenceStatus.isBlank() ? "ONLINE" : presenceStatus);
+        props.setProperty("sidebar.collapsed", String.valueOf(sidebarCollapsed));
         for (Map.Entry<String, String> entry : avatarPaths.entrySet()) {
             if (entry.getValue() != null && !entry.getValue().isBlank()) {
                 props.setProperty("avatar." + entry.getKey(), entry.getValue());

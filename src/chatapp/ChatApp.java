@@ -78,6 +78,8 @@ public class ChatApp extends Application {
     private final ChatAuthService authService = new ChatAuthService(database);
     private final FileStorageService storageService = new FileStorageService(config);
     private final ChatService chatService = new ChatService(database, storageService);
+    private final SecurityService securityService = new SecurityService(database, config);
+    private final AuditLogService auditLogService = new AuditLogService(database);
     private final UserSettings userSettings = UserSettings.load();
 
     private Stage stage;
@@ -122,6 +124,7 @@ public class ChatApp extends Application {
     private String searchMode = "CHAT";
     private final Set<Long> conversationIdsWithTasks = new HashSet<>();
     private RealtimeClient realtimeClient;
+    private String sessionToken = "";
     private final ExecutorService dbExecutor = Executors.newCachedThreadPool(r -> {
         Thread thread = new Thread(r, "chat-db-worker");
         thread.setDaemon(true);
@@ -187,11 +190,9 @@ public class ChatApp extends Application {
                 new SchemaManager(database).init();
                 currentUser = authService.login(username.getText().trim(), password.getText());
                 if (currentUser == null) {
+                    auditLogService.log(username.getText().trim(), "LOGIN_FAILED", "USER", username.getText().trim(), "Invalid credentials or employee not approved");
                     return false;
                 }
-                chatService.cleanupOldMessages(config.retentionDays);
-                chatService.ensureCompanyConversation(currentUser);
-                companyUsers = chatService.listCompanyUsers(currentUser);
                 return true;
             }, ok -> {
                 login.setDisable(false);
@@ -199,7 +200,7 @@ public class ChatApp extends Application {
                     status.setText("Sai tài khoản/mật khẩu hoặc tài khoản nhân viên chưa được duyệt.");
                     return;
                 }
-                showChat();
+                handlePostPasswordLogin(status);
             }, e -> {
                 login.setDisable(false);
                 status.setText("Không thể kết nối: " + e.getMessage());
@@ -226,6 +227,88 @@ public class ChatApp extends Application {
         stage.setMinWidth(980);
         stage.setMinHeight(640);
         stage.show();
+    }
+
+    private void handlePostPasswordLogin(Label status) {
+        if (currentUser != null && currentUser.isAdmin()) {
+            runDb(() -> authService.twoFactorEnabled(currentUser.username), enabled -> {
+                if (enabled) {
+                    verifyAdminTwoFactor(status);
+                } else {
+                    setupAdminTwoFactor(status);
+                }
+            }, e -> status.setText("Không kiểm tra được 2FA: " + e.getMessage()));
+            return;
+        }
+        finishLogin(status);
+    }
+
+    private void setupAdminTwoFactor(Label status) {
+        String secret = securityService.generateTotpSecret();
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle("Thiết lập 2FA Admin");
+        styleDialog(dialog);
+        ButtonType verify = new ButtonType("Xác nhận", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(verify, ButtonType.CANCEL);
+        TextField code = new TextField();
+        code.getStyleClass().add("login-input");
+        String currentCode = securityService.currentTotp(secret);
+        VBox content = new VBox(10,
+                label("Lưu secret này vào ứng dụng OTP:", "dialog-label"),
+                settingLine("Secret", secret),
+                settingLine("Mã hiện tại", currentCode),
+                label("Nhập mã OTP để bật 2FA:", "dialog-label"),
+                code);
+        content.getStyleClass().add("dialog-content");
+        dialog.getDialogPane().setContent(content);
+        dialog.setResultConverter(btn -> btn == verify ? code.getText() : null);
+        dialog.showAndWait().ifPresentOrElse(value -> {
+            if (!securityService.verifyTotp(secret, value)) {
+                status.setText("Mã 2FA không đúng.");
+                auditLogService.log(currentUser.username, "2FA_SETUP_FAILED", "USER", currentUser.username, "");
+                return;
+            }
+            runDb(() -> {
+                authService.saveTwoFactorSecret(currentUser.username, secret);
+                auditLogService.log(currentUser.username, "2FA_ENABLED", "USER", currentUser.username, "");
+                return true;
+            }, ok -> finishLogin(status), e -> status.setText("Không lưu được 2FA: " + e.getMessage()));
+        }, () -> status.setText("Admin cần bật 2FA để đăng nhập."));
+    }
+
+    private void verifyAdminTwoFactor(Label status) {
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle("Xác thực 2FA");
+        styleDialog(dialog);
+        ButtonType verify = new ButtonType("Xác nhận", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(verify, ButtonType.CANCEL);
+        TextField code = new TextField();
+        code.getStyleClass().add("login-input");
+        dialog.getDialogPane().setContent(new VBox(10, label("Nhập mã OTP admin", "dialog-label"), code));
+        dialog.setResultConverter(btn -> btn == verify ? code.getText() : null);
+        dialog.showAndWait().ifPresentOrElse(value -> runDb(() -> {
+            String secret = authService.twoFactorSecret(currentUser.username);
+            return securityService.verifyTotp(secret, value);
+        }, ok -> {
+            if (ok) {
+                auditLogService.log(currentUser.username, "2FA_VERIFIED", "USER", currentUser.username, "");
+                finishLogin(status);
+            } else {
+                auditLogService.log(currentUser.username, "2FA_FAILED", "USER", currentUser.username, "");
+                status.setText("Mã 2FA không đúng.");
+            }
+        }, e -> status.setText("Không xác thực được 2FA: " + e.getMessage())), () -> status.setText("Bạn đã hủy xác thực 2FA."));
+    }
+
+    private void finishLogin(Label status) {
+        runDb(() -> {
+            chatService.cleanupOldMessages(config.retentionDays);
+            chatService.ensureCompanyConversation(currentUser);
+            companyUsers = chatService.listCompanyUsers(currentUser);
+            sessionToken = securityService.createSession(currentUser);
+            auditLogService.log(currentUser.username, "LOGIN_SUCCESS", "USER", currentUser.username, "");
+            return true;
+        }, ok -> showChat(), e -> status.setText("Không thể khởi tạo phiên chat: " + e.getMessage()));
     }
 
     private void showChat() {
@@ -1192,6 +1275,7 @@ public class ChatApp extends Application {
                     draft.priority,
                     draft.deadline == null ? null : draft.deadline.atTime(17, 0),
                     draft.kpiPoints), taskId -> {
+                auditLogService.log(currentUser.username, "TASK_CREATED", "CHAT_TASK", taskId, "conversation=" + conversationId);
                 loadTasksAsync();
                 showInfo("Đã tạo KPI Task.");
                 publishRealtime("TASK_UPDATED", conversationId);
@@ -1448,6 +1532,7 @@ public class ChatApp extends Application {
         Long replyId = replyToId;
         List<File> files = new ArrayList<>(selectedFiles);
         runDb(() -> chatService.sendMessage(currentUser, conversationId, body, replyId, files), messageId -> {
+            auditLogService.log(currentUser.username, files.isEmpty() ? "MESSAGE_SENT" : "MESSAGE_WITH_FILE_SENT", "MESSAGE", messageId, "conversation=" + conversationId);
             input.clear();
             selectedFiles.clear();
             replyToId = null;
@@ -1676,9 +1761,11 @@ public class ChatApp extends Application {
                     long id;
                     if (editConversation == null) {
                         id = chatService.createGroup(currentUser, form.title, form.members);
+                        auditLogService.log(currentUser.username, "GROUP_CREATED", "CONVERSATION", id, "members=" + form.members.size());
                     } else {
                         id = editConversation.id;
                         chatService.updateGroup(currentUser, id, form.title, form.members);
+                        auditLogService.log(currentUser.username, "GROUP_UPDATED", "CONVERSATION", id, "members=" + form.members.size());
                     }
                     loadConversations();
                     selectConversation(id);
@@ -1699,6 +1786,7 @@ public class ChatApp extends Application {
         dialog.showAndWait().ifPresent(text -> {
             runDb(() -> {
                 chatService.editMessage(currentUser, msg.id, text);
+                auditLogService.log(currentUser.username, "MESSAGE_EDITED", "MESSAGE", msg.id, "conversation=" + msg.conversationId);
                 return true;
             }, ok -> {
                 refreshMessages(true);
@@ -1712,6 +1800,7 @@ public class ChatApp extends Application {
     private void recallMessage(ChatMessage msg) {
         runDb(() -> {
             chatService.recallMessage(currentUser, msg.id);
+            auditLogService.log(currentUser.username, "MESSAGE_RECALLED", "MESSAGE", msg.id, "conversation=" + msg.conversationId);
             return true;
         }, ok -> {
             refreshMessages(true);
@@ -1724,6 +1813,7 @@ public class ChatApp extends Application {
     private void pinMessage(ChatMessage msg) {
         runDb(() -> {
             chatService.togglePinMessage(currentUser, msg.id, !msg.pinned);
+            auditLogService.log(currentUser.username, !msg.pinned ? "MESSAGE_PINNED" : "MESSAGE_UNPINNED", "MESSAGE", msg.id, "conversation=" + msg.conversationId);
             return true;
         }, ok -> {
             refreshMessages(true);
@@ -1738,6 +1828,7 @@ public class ChatApp extends Application {
         long conversationId = currentConversation.id;
         runDb(() -> {
             chatService.togglePinConversation(currentUser, conversationId, !currentConversation.pinned);
+            auditLogService.log(currentUser.username, !currentConversation.pinned ? "CONVERSATION_PINNED" : "CONVERSATION_UNPINNED", "CONVERSATION", conversationId, "");
             return true;
         }, ok -> {
             loadConversations();
@@ -1758,7 +1849,7 @@ public class ChatApp extends Application {
                 loadTasksAsync();
             }
         }));
-        realtimeClient.connect(currentUser.username);
+        realtimeClient.connect(currentUser.username, sessionToken);
     }
 
     private void publishRealtime(String type, long conversationId) {
@@ -1978,9 +2069,19 @@ public class ChatApp extends Application {
         confirm.getButtonTypes().setAll(logout, ButtonType.CANCEL);
         confirm.showAndWait().ifPresent(choice -> {
             if (choice == logout) {
+                String username = currentUser == null ? "" : currentUser.username;
+                try {
+                    if (!sessionToken.isBlank()) {
+                        securityService.revokeToken(sessionToken);
+                    }
+                    auditLogService.log(username, "LOGOUT", "SESSION", username, "User requested logout");
+                } catch (Exception e) {
+                    System.err.println("Logout audit/session cleanup failed: " + e.getMessage());
+                }
                 if (realtimeClient != null) {
                     realtimeClient.close();
                 }
+                sessionToken = "";
                 hideChatHead();
                 currentUser = null;
                 currentConversation = null;

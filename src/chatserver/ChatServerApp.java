@@ -3,6 +3,7 @@ package chatserver;
 import chatapp.AppConfig;
 import chatapp.Database;
 import chatapp.SchemaManager;
+import chatapp.SecurityService;
 import chatshared.JsonUtil;
 
 import java.net.InetSocketAddress;
@@ -11,6 +12,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,6 +49,7 @@ public final class ChatServerApp {
     private static final class RealtimeServer extends WebSocketServer {
         private final AppConfig config;
         private final Database db;
+        private final SecurityService securityService;
         private final Set<WebSocket> sockets = ConcurrentHashMap.newKeySet();
         private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread thread = new Thread(r, "chat-birthday-bot");
@@ -57,7 +61,9 @@ public final class ChatServerApp {
             super(new InetSocketAddress(config.realtimeHost, config.realtimePort));
             this.config = config;
             this.db = db;
+            this.securityService = new SecurityService(db, config);
             scheduler.scheduleWithFixedDelay(this::sendBirthdayMessagesQuietly, 5, TimeUnit.HOURS.toSeconds(6), TimeUnit.SECONDS);
+            scheduler.scheduleWithFixedDelay(this::processDueAutomationQuietly, 8, 15, TimeUnit.SECONDS);
         }
 
         @Override
@@ -76,8 +82,23 @@ public final class ChatServerApp {
             Map<String, String> event = JsonUtil.parseObject(message);
             String type = event.getOrDefault("type", "");
             if ("AUTH".equals(type)) {
-                conn.setAttachment(event.getOrDefault("username", ""));
-                conn.send(JsonUtil.stringify(Map.of("type", "AUTH_OK", "at", System.currentTimeMillis())));
+                try {
+                    String username = securityService.validateToken(event.getOrDefault("token", ""));
+                    if (username == null || username.isBlank()) {
+                        conn.send(JsonUtil.stringify(Map.of("type", "AUTH_FAILED", "at", System.currentTimeMillis())));
+                        conn.close(1008, "auth failed");
+                        return;
+                    }
+                    conn.setAttachment(username);
+                    conn.send(JsonUtil.stringify(Map.of("type", "AUTH_OK", "at", System.currentTimeMillis())));
+                } catch (Exception e) {
+                    conn.send(JsonUtil.stringify(Map.of("type", "AUTH_FAILED", "at", System.currentTimeMillis())));
+                    conn.close(1011, "auth error");
+                }
+                return;
+            }
+            if (conn.getAttachment() == null) {
+                conn.close(1008, "auth required");
                 return;
             }
             broadcast(message);
@@ -107,6 +128,85 @@ public final class ChatServerApp {
                 sendBirthdayMessages();
             } catch (Exception e) {
                 System.err.println("Birthday bot error: " + e.getMessage());
+            }
+        }
+
+        private void processDueAutomationQuietly() {
+            try {
+                sendDueScheduledMessages();
+                sendDueReminders();
+            } catch (Exception e) {
+                System.err.println("Scheduled chat job error: " + e.getMessage());
+            }
+        }
+
+        private void sendDueScheduledMessages() throws Exception {
+            List<PushEvent> events = new ArrayList<>();
+            try (Connection c = db.getConnection()) {
+                c.setAutoCommit(false);
+                try {
+                    try (PreparedStatement ps = c.prepareStatement(
+                            "SELECT id, conversation_id, sender_username, body FROM chat_scheduled_messages " +
+                                    "WHERE status = 'PENDING' AND scheduled_at <= NOW() ORDER BY scheduled_at ASC LIMIT 25");
+                         ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            long scheduledId = rs.getLong("id");
+                            long conversationId = rs.getLong("conversation_id");
+                            String sender = rs.getString("sender_username");
+                            String body = rs.getString("body");
+                            long messageId = insertUserMessage(c, conversationId, sender, body, "TEXT", null);
+                            try (PreparedStatement done = c.prepareStatement(
+                                    "UPDATE chat_scheduled_messages SET status = 'SENT', sent_at = NOW() WHERE id = ?")) {
+                                done.setLong(1, scheduledId);
+                                done.executeUpdate();
+                            }
+                            events.add(new PushEvent("MESSAGE_CREATED", conversationId, messageId, sender));
+                        }
+                    }
+                    c.commit();
+                } catch (Exception e) {
+                    c.rollback();
+                    throw e;
+                }
+            }
+            for (PushEvent event : events) {
+                broadcast(JsonUtil.stringify(JsonUtil.event(event.type, event.conversationId, event.actor)));
+            }
+        }
+
+        private void sendDueReminders() throws Exception {
+            List<PushEvent> events = new ArrayList<>();
+            try (Connection c = db.getConnection()) {
+                c.setAutoCommit(false);
+                try {
+                    try (PreparedStatement ps = c.prepareStatement(
+                            "SELECT id, conversation_id, title, body FROM chat_reminders " +
+                                    "WHERE status = 'PENDING' AND remind_at <= NOW() AND conversation_id IS NOT NULL " +
+                                    "ORDER BY remind_at ASC LIMIT 25");
+                         ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            long reminderId = rs.getLong("id");
+                            long conversationId = rs.getLong("conversation_id");
+                            String title = rs.getString("title");
+                            String body = rs.getString("body");
+                            String text = "[Nhắc việc] " + title + (body == null || body.isBlank() ? "" : "\n" + body);
+                            long messageId = insertBotMessage(c, conversationId, text, "REMINDER_CARD", "{\"reminderId\":" + reminderId + "}");
+                            try (PreparedStatement done = c.prepareStatement(
+                                    "UPDATE chat_reminders SET status = 'SENT', sent_at = NOW() WHERE id = ?")) {
+                                done.setLong(1, reminderId);
+                                done.executeUpdate();
+                            }
+                            events.add(new PushEvent("MESSAGE_CREATED", conversationId, messageId, "system_bot"));
+                        }
+                    }
+                    c.commit();
+                } catch (Exception e) {
+                    c.rollback();
+                    throw e;
+                }
+            }
+            for (PushEvent event : events) {
+                broadcast(JsonUtil.stringify(JsonUtil.event(event.type, event.conversationId, event.actor)));
             }
         }
 
@@ -207,8 +307,52 @@ public final class ChatServerApp {
                     if (!keys.next()) {
                         throw new IllegalStateException("Missing bot message id.");
                     }
-                    return keys.getLong(1);
+                    long messageId = keys.getLong(1);
+                    try (PreparedStatement update = c.prepareStatement("UPDATE chat_conversations SET updated_at = NOW() WHERE id = ?")) {
+                        update.setLong(1, conversationId);
+                        update.executeUpdate();
+                    }
+                    return messageId;
                 }
+            }
+        }
+
+        private long insertUserMessage(Connection c, long conversationId, String sender, String body, String messageType, String metadataJson) throws Exception {
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT INTO chat_messages (conversation_id, sender_username, body, message_type, metadata_json, created_at, updated_at) " +
+                            "VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
+                    Statement.RETURN_GENERATED_KEYS)) {
+                ps.setLong(1, conversationId);
+                ps.setString(2, sender);
+                ps.setString(3, body);
+                ps.setString(4, messageType);
+                ps.setString(5, metadataJson);
+                ps.executeUpdate();
+                try (ResultSet keys = ps.getGeneratedKeys()) {
+                    if (!keys.next()) {
+                        throw new IllegalStateException("Missing scheduled message id.");
+                    }
+                    long messageId = keys.getLong(1);
+                    try (PreparedStatement update = c.prepareStatement("UPDATE chat_conversations SET updated_at = NOW() WHERE id = ?")) {
+                        update.setLong(1, conversationId);
+                        update.executeUpdate();
+                    }
+                    return messageId;
+                }
+            }
+        }
+
+        private static final class PushEvent {
+            final String type;
+            final long conversationId;
+            final long messageId;
+            final String actor;
+
+            PushEvent(String type, long conversationId, long messageId, String actor) {
+                this.type = type;
+                this.conversationId = conversationId;
+                this.messageId = messageId;
+                this.actor = actor;
             }
         }
     }

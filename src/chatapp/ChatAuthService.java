@@ -40,6 +40,36 @@ final class ChatAuthService {
         }
     }
 
+    boolean twoFactorEnabled(String username) throws Exception {
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "SELECT enabled FROM admin_2fa_secrets WHERE username = ?")) {
+            ps.setString(1, username);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getBoolean("enabled");
+            }
+        }
+    }
+
+    String twoFactorSecret(String username) throws Exception {
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "SELECT secret_base32 FROM admin_2fa_secrets WHERE username = ? AND enabled = TRUE")) {
+            ps.setString(1, username);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString("secret_base32") : "";
+            }
+        }
+    }
+
+    void saveTwoFactorSecret(String username, String secret) throws Exception {
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "INSERT INTO admin_2fa_secrets (username, secret_base32, enabled, created_at, updated_at) VALUES (?, ?, TRUE, NOW(), NOW()) " +
+                        "ON DUPLICATE KEY UPDATE secret_base32 = VALUES(secret_base32), enabled = TRUE, updated_at = NOW()")) {
+            ps.setString(1, username);
+            ps.setString(2, secret);
+            ps.executeUpdate();
+        }
+    }
+
     private CurrentUser loadApprovedEmployee(Connection c, String username, String fullName, String role) throws Exception {
         String sql = "SELECT id, name, account_username, department, position, status FROM employees WHERE login_username = ? ORDER BY ngay_vao_lam DESC LIMIT 1";
         try (PreparedStatement ps = c.prepareStatement(sql)) {

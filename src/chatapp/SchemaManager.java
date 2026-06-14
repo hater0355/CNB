@@ -132,6 +132,98 @@ public final class SchemaManager {
             st.execute("CREATE TABLE IF NOT EXISTS chat_bot_events (" +
                     "event_key VARCHAR(160) PRIMARY KEY," +
                     "created_at DATETIME NOT NULL)");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_audit_logs (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                    "actor_username VARCHAR(50) NULL," +
+                    "action VARCHAR(80) NOT NULL," +
+                    "target_type VARCHAR(60) NULL," +
+                    "target_id VARCHAR(120) NULL," +
+                    "detail TEXT NULL," +
+                    "ip_address VARCHAR(80) NULL," +
+                    "created_at DATETIME NOT NULL," +
+                    "INDEX idx_chat_audit_actor_time (actor_username, created_at)," +
+                    "INDEX idx_chat_audit_action_time (action, created_at))");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_sessions (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                    "username VARCHAR(50) NOT NULL," +
+                    "token_hash CHAR(64) NOT NULL UNIQUE," +
+                    "issued_at DATETIME NOT NULL," +
+                    "expires_at DATETIME NOT NULL," +
+                    "revoked_at DATETIME NULL," +
+                    "last_seen_at DATETIME NULL," +
+                    "INDEX idx_chat_sessions_user (username, expires_at))");
+            st.execute("CREATE TABLE IF NOT EXISTS admin_2fa_secrets (" +
+                    "username VARCHAR(50) PRIMARY KEY," +
+                    "secret_base32 VARCHAR(80) NOT NULL," +
+                    "enabled BOOLEAN NOT NULL DEFAULT TRUE," +
+                    "created_at DATETIME NOT NULL," +
+                    "updated_at DATETIME NOT NULL)");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_message_reactions (" +
+                    "message_id BIGINT NOT NULL," +
+                    "username VARCHAR(50) NOT NULL," +
+                    "emoji VARCHAR(40) NOT NULL," +
+                    "created_at DATETIME NOT NULL," +
+                    "PRIMARY KEY (message_id, username, emoji)," +
+                    "CONSTRAINT fk_chat_reactions_message FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE CASCADE)");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_mentions (" +
+                    "message_id BIGINT NOT NULL," +
+                    "mentioned_username VARCHAR(50) NOT NULL," +
+                    "created_at DATETIME NOT NULL," +
+                    "PRIMARY KEY (message_id, mentioned_username)," +
+                    "INDEX idx_chat_mentions_user (mentioned_username, created_at)," +
+                    "CONSTRAINT fk_chat_mentions_message FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE CASCADE)");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_scheduled_messages (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                    "conversation_id BIGINT NOT NULL," +
+                    "sender_username VARCHAR(50) NOT NULL," +
+                    "body TEXT NOT NULL," +
+                    "scheduled_at DATETIME NOT NULL," +
+                    "sent_at DATETIME NULL," +
+                    "status VARCHAR(30) NOT NULL DEFAULT 'PENDING'," +
+                    "created_at DATETIME NOT NULL," +
+                    "INDEX idx_chat_scheduled_due (status, scheduled_at)," +
+                    "CONSTRAINT fk_chat_scheduled_conversation FOREIGN KEY (conversation_id) REFERENCES chat_conversations(id) ON DELETE CASCADE)");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_typing_status (" +
+                    "conversation_id BIGINT NOT NULL," +
+                    "username VARCHAR(50) NOT NULL," +
+                    "updated_at DATETIME NOT NULL," +
+                    "PRIMARY KEY (conversation_id, username))");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_reminders (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY," +
+                    "conversation_id BIGINT NULL," +
+                    "username VARCHAR(50) NULL," +
+                    "title VARCHAR(255) NOT NULL," +
+                    "body TEXT NULL," +
+                    "remind_at DATETIME NOT NULL," +
+                    "sent_at DATETIME NULL," +
+                    "status VARCHAR(30) NOT NULL DEFAULT 'PENDING'," +
+                    "created_at DATETIME NOT NULL," +
+                    "INDEX idx_chat_reminders_due (status, remind_at))");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_daily_stats (" +
+                    "stat_date DATE NOT NULL," +
+                    "company_owner VARCHAR(50) NOT NULL," +
+                    "conversation_id BIGINT NOT NULL," +
+                    "message_count INT NOT NULL DEFAULT 0," +
+                    "active_users INT NOT NULL DEFAULT 0," +
+                    "PRIMARY KEY (stat_date, company_owner, conversation_id))");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_keyword_stats (" +
+                    "keyword VARCHAR(120) NOT NULL," +
+                    "company_owner VARCHAR(50) NOT NULL," +
+                    "use_count INT NOT NULL DEFAULT 0," +
+                    "updated_at DATETIME NOT NULL," +
+                    "PRIMARY KEY (keyword, company_owner))");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_messages_archive LIKE chat_messages");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_rate_limits (" +
+                    "scope_key VARCHAR(160) PRIMARY KEY," +
+                    "counter INT NOT NULL DEFAULT 0," +
+                    "window_start DATETIME NOT NULL," +
+                    "updated_at DATETIME NOT NULL)");
+            st.execute("CREATE TABLE IF NOT EXISTS chat_notification_reads (" +
+                    "username VARCHAR(50) NOT NULL," +
+                    "event_key VARCHAR(160) NOT NULL," +
+                    "read_at DATETIME NOT NULL," +
+                    "PRIMARY KEY (username, event_key))");
+            addColumnIfMissing(c, "chat_reminders", "body", "TEXT NULL");
             st.execute("INSERT IGNORE INTO users (username, password, role, company_code, full_name, email, phone) " +
                     "VALUES ('system_bot', '', 'SYSTEM', 'SYSTEM', 'System Notification Bot', '', '')");
         }

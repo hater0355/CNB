@@ -21,6 +21,7 @@ final class RealtimeClient implements WebSocket.Listener {
     });
     private volatile WebSocket socket;
     private volatile String username = "";
+    private volatile String token = "";
     private final StringBuilder buffer = new StringBuilder();
 
     RealtimeClient(AppConfig config, Runnable onDataChanged) {
@@ -28,8 +29,9 @@ final class RealtimeClient implements WebSocket.Listener {
         this.onDataChanged = onDataChanged;
     }
 
-    void connect(String username) {
+    void connect(String username, String token) {
         this.username = username == null ? "" : username;
+        this.token = token == null ? "" : token;
         executor.submit(this::connectInternal);
     }
 
@@ -67,7 +69,7 @@ final class RealtimeClient implements WebSocket.Listener {
     private void sendAuth() {
         WebSocket ws = socket;
         if (ws != null) {
-            ws.sendText(JsonUtil.stringify(Map.of("type", "AUTH", "username", username)), true);
+            ws.sendText(JsonUtil.stringify(Map.of("type", "AUTH", "token", token)), true);
         }
     }
 

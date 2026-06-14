@@ -14,8 +14,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 final class ChatService {
+    private static final Pattern MENTION_PATTERN = Pattern.compile("@([A-Za-z0-9_.-]{2,64})");
     private final Database db;
     private final FileStorageService storage;
 
@@ -600,6 +603,7 @@ final class ChatService {
         try (Connection c = db.getConnection()) {
             c.setAutoCommit(false);
             try {
+                checkRateLimit(c, "message:" + user.username, 60, 60);
                 long messageId;
                 try (PreparedStatement ps = c.prepareStatement(
                         "INSERT INTO chat_messages (conversation_id, sender_username, body, reply_to_id, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())",
@@ -630,6 +634,7 @@ final class ChatService {
                     }
                 }
 
+                insertMentions(c, conversationId, messageId, hasText ? body.trim() : "");
                 try (PreparedStatement ps = c.prepareStatement("UPDATE chat_conversations SET updated_at = NOW() WHERE id = ?")) {
                     ps.setLong(1, conversationId);
                     ps.executeUpdate();
@@ -971,6 +976,148 @@ final class ChatService {
         try (PreparedStatement ps = c.prepareStatement("UPDATE chat_conversations SET updated_at = NOW() WHERE id = ?")) {
             ps.setLong(1, task.conversationId);
             ps.executeUpdate();
+        }
+    }
+
+    private long conversationIdForMessage(long messageId) throws Exception {
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement("SELECT conversation_id FROM chat_messages WHERE id = ?")) {
+            ps.setLong(1, messageId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getLong(1);
+                }
+            }
+        }
+        throw new IllegalArgumentException("Tin nhắn không tồn tại.");
+    }
+
+    private void insertMentions(Connection c, long conversationId, long messageId, String body) throws Exception {
+        if (body == null || body.isBlank()) {
+            return;
+        }
+        Matcher matcher = MENTION_PATTERN.matcher(body);
+        Set<String> mentioned = new HashSet<>();
+        while (matcher.find()) {
+            mentioned.add(matcher.group(1));
+        }
+        if (mentioned.isEmpty()) {
+            return;
+        }
+        try (PreparedStatement member = c.prepareStatement(
+                "SELECT 1 FROM chat_members WHERE conversation_id = ? AND username = ? LIMIT 1");
+             PreparedStatement insert = c.prepareStatement(
+                     "INSERT IGNORE INTO chat_mentions (message_id, mentioned_username, created_at) VALUES (?, ?, NOW())")) {
+            for (String username : mentioned) {
+                member.setLong(1, conversationId);
+                member.setString(2, username);
+                try (ResultSet rs = member.executeQuery()) {
+                    if (!rs.next()) {
+                        continue;
+                    }
+                }
+                insert.setLong(1, messageId);
+                insert.setString(2, username);
+                insert.addBatch();
+            }
+            insert.executeBatch();
+        }
+    }
+
+    private void checkRateLimit(Connection c, String rateKey, int maxCount, int windowSeconds) throws Exception {
+        try (PreparedStatement ps = c.prepareStatement(
+                "INSERT INTO chat_rate_limits (scope_key, window_start, counter, updated_at) VALUES (?, NOW(), 1, NOW()) " +
+                        "ON DUPLICATE KEY UPDATE " +
+                        "counter = IF(window_start < DATE_SUB(NOW(), INTERVAL ? SECOND), 1, counter + 1), " +
+                        "window_start = IF(window_start < DATE_SUB(NOW(), INTERVAL ? SECOND), NOW(), window_start), " +
+                        "updated_at = NOW()")) {
+            ps.setString(1, rateKey);
+            ps.setInt(2, windowSeconds);
+            ps.setInt(3, windowSeconds);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = c.prepareStatement("SELECT counter FROM chat_rate_limits WHERE scope_key = ?")) {
+            ps.setString(1, rateKey);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next() && rs.getInt(1) > maxCount) {
+                    throw new IllegalArgumentException("Bạn gửi quá nhanh. Vui lòng thử lại sau.");
+                }
+            }
+        }
+    }
+
+    void addReaction(CurrentUser user, long messageId, String emoji) throws Exception {
+        if (emoji == null || emoji.isBlank()) {
+            throw new IllegalArgumentException("Reaction khong hop le.");
+        }
+        long conversationId = conversationIdForMessage(messageId);
+        if (!isMember(conversationId, user.username)) {
+            throw new IllegalArgumentException("Ban khong thuoc hoi thoai nay.");
+        }
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "INSERT INTO chat_message_reactions (message_id, username, emoji, created_at) VALUES (?, ?, ?, NOW()) " +
+                        "ON DUPLICATE KEY UPDATE emoji = VALUES(emoji), created_at = NOW()")) {
+            ps.setLong(1, messageId);
+            ps.setString(2, user.username);
+            ps.setString(3, emoji.trim());
+            ps.executeUpdate();
+        }
+    }
+
+    void removeReaction(CurrentUser user, long messageId) throws Exception {
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "DELETE FROM chat_message_reactions WHERE message_id = ? AND username = ?")) {
+            ps.setLong(1, messageId);
+            ps.setString(2, user.username);
+            ps.executeUpdate();
+        }
+    }
+
+    long scheduleMessage(CurrentUser user, long conversationId, String body, LocalDateTime scheduledAt) throws Exception {
+        if (!isMember(conversationId, user.username)) {
+            throw new IllegalArgumentException("Ban khong thuoc hoi thoai nay.");
+        }
+        if (body == null || body.isBlank()) {
+            throw new IllegalArgumentException("Noi dung hen gio khong duoc de trong.");
+        }
+        if (scheduledAt == null || !scheduledAt.isAfter(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Thoi diem gui phai nam trong tuong lai.");
+        }
+        try (Connection c = db.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                     "INSERT INTO chat_scheduled_messages (conversation_id, sender_username, body, scheduled_at, status, created_at) " +
+                             "VALUES (?, ?, ?, ?, 'PENDING', NOW())",
+                     Statement.RETURN_GENERATED_KEYS)) {
+            ps.setLong(1, conversationId);
+            ps.setString(2, user.username);
+            ps.setString(3, body.trim());
+            ps.setTimestamp(4, Timestamp.valueOf(scheduledAt));
+            ps.executeUpdate();
+            return generatedId(ps);
+        }
+    }
+
+    long createReminder(CurrentUser user, Long conversationId, String title, String body, LocalDateTime remindAt) throws Exception {
+        if (conversationId != null && !isMember(conversationId, user.username)) {
+            throw new IllegalArgumentException("Ban khong thuoc hoi thoai nay.");
+        }
+        if (title == null || title.isBlank()) {
+            throw new IllegalArgumentException("Tieu de nhac viec khong duoc de trong.");
+        }
+        if (remindAt == null || !remindAt.isAfter(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Thoi diem nhac phai nam trong tuong lai.");
+        }
+        try (Connection c = db.getConnection();
+             PreparedStatement ps = c.prepareStatement(
+                     "INSERT INTO chat_reminders (username, conversation_id, title, body, remind_at, status, created_at) " +
+                             "VALUES (?, ?, ?, ?, ?, 'PENDING', NOW())",
+                     Statement.RETURN_GENERATED_KEYS)) {
+            ps.setString(1, user.username);
+            if (conversationId == null) ps.setNull(2, java.sql.Types.BIGINT); else ps.setLong(2, conversationId);
+            ps.setString(3, title.trim());
+            ps.setString(4, body == null ? "" : body.trim());
+            ps.setTimestamp(5, Timestamp.valueOf(remindAt));
+            ps.executeUpdate();
+            return generatedId(ps);
         }
     }
 

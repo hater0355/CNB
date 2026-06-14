@@ -19,6 +19,11 @@ public final class AppConfig {
     public final String realtimeHost;
     public final int realtimePort;
     public final String realtimeUrl;
+    public final String authTokenSecret;
+    public final int authSessionHours;
+    public final String slackWebhookUrl;
+    public final String teamsWebhookUrl;
+    public final boolean redisEnabled;
 
     private AppConfig(Properties p) {
         String defaultFiles = Path.of(System.getProperty("user.dir"), "chat-files").toString();
@@ -36,6 +41,11 @@ public final class AppConfig {
         realtimeHost = p.getProperty("chat.realtime.host", "0.0.0.0");
         realtimePort = Math.max(1, intProp(p, "chat.realtime.port", 8787));
         realtimeUrl = p.getProperty("chat.realtime.url", "ws://localhost:" + realtimePort);
+        authTokenSecret = p.getProperty("auth.token.secret", "CHAT_NOI_BO_CHANGE_ME_LOCAL_SECRET");
+        authSessionHours = Math.max(1, intProp(p, "auth.session.hours", 8));
+        slackWebhookUrl = p.getProperty("integration.slack.webhook", "");
+        teamsWebhookUrl = p.getProperty("integration.teams.webhook", "");
+        redisEnabled = Boolean.parseBoolean(p.getProperty("redis.enabled", "false"));
     }
 
     public static AppConfig load() {

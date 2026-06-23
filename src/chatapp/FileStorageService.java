@@ -80,7 +80,7 @@ final class FileStorageService {
             String format = "jpeg".equals(ext) ? "jpg" : ext;
             return ImageIO.write(resized, format, target.toFile());
         } catch (Exception e) {
-            System.err.println("Image compression skipped: " + e.getMessage());
+            AppLog.warn("Bỏ qua bước nén ảnh.", e);
             return false;
         }
     }

@@ -36,7 +36,7 @@ final class PendingMessageService {
                     ? java.nio.file.StandardOpenOption.APPEND
                     : java.nio.file.StandardOpenOption.CREATE);
         } catch (Exception e) {
-            System.err.println("Cannot save pending message: " + e.getMessage());
+            AppLog.warn("Không lưu được tin nhắn chờ gửi.", e);
         }
     }
 
@@ -61,7 +61,7 @@ final class PendingMessageService {
                 result.add(msg);
             }
         } catch (Exception e) {
-            System.err.println("Cannot read pending messages: " + e.getMessage());
+            AppLog.warn("Không đọc được danh sách tin nhắn chờ gửi.", e);
         }
         return result;
     }
@@ -82,7 +82,7 @@ final class PendingMessageService {
             }
             Files.write(path, kept, StandardCharsets.UTF_8);
         } catch (Exception e) {
-            System.err.println("Cannot update pending messages: " + e.getMessage());
+            AppLog.warn("Không cập nhật được danh sách tin nhắn chờ gửi.", e);
         }
     }
 

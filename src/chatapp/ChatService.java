@@ -674,7 +674,7 @@ final class ChatService {
                 return true;
             }
         }
-        System.err.println("Workflow approved in chat only: schedules/timekeeping table was not found for payroll/timekeeping sync.");
+                        AppLog.warn("Workflow đã duyệt trong chat nhưng chưa tìm thấy bảng schedules/timekeeping để đồng bộ chấm công.");
         return false;
     }
 

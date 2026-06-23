@@ -15,6 +15,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Slider;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -81,7 +82,24 @@ final class SettingsDialog {
         CheckBox bandwidthSaving = checkBox("Tiết kiệm băng thông: không tự preview ảnh/video lớn", userSettings.bandwidthSaving);
 
         String[] selectedAccent = {validHex(userSettings.accentColor) ? userSettings.accentColor : "#007aff"};
+        String[] selectedTextColor = {validHex(userSettings.textColor) ? userSettings.textColor : "#f8fafc"};
+        String[] selectedMutedColor = {validHex(userSettings.mutedColor) ? userSettings.mutedColor : "#64748b"};
         VBox accentPalette = colorPalette(selectedAccent);
+        VBox textPalette = colorPalette(selectedTextColor, "#f8fafc", "#e5e7eb", "#dbeafe", "#fef3c7", "#dcfce7", "#fee2e2");
+        VBox mutedPalette = colorPalette(selectedMutedColor, "#64748b", "#94a3b8", "#a5b4fc", "#fbbf24", "#5eead4", "#fca5a5");
+        Slider fontSizeSlider = new Slider(12, 18, Math.max(12, Math.min(18, userSettings.fontSize)));
+        fontSizeSlider.getStyleClass().add("settings-slider");
+        fontSizeSlider.setBlockIncrement(1);
+        fontSizeSlider.setMajorTickUnit(1);
+        fontSizeSlider.setMinorTickCount(0);
+        fontSizeSlider.setSnapToTicks(true);
+        fontSizeSlider.setShowTickMarks(true);
+        fontSizeSlider.setShowTickLabels(true);
+        Label fontSizeValue = valueLabel(Math.round(fontSizeSlider.getValue()) + "px");
+        fontSizeSlider.valueProperty().addListener((obs, old, value) -> fontSizeValue.setText(Math.round(value.doubleValue()) + "px"));
+        HBox fontSizeRow = new HBox(12, fontSizeSlider, fontSizeValue);
+        fontSizeRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(fontSizeSlider, Priority.ALWAYS);
         ComboBox<String> backgroundPicker = new ComboBox<>(FXCollections.observableArrayList(
                 "soft-blue", "clean-white", "mint", "lavender", "peach", "night"));
         backgroundPicker.getStyleClass().add("dialog-search");
@@ -114,6 +132,12 @@ final class SettingsDialog {
                 chooseAvatar,
                 settingLine("Màu chủ đạo", "Chọn màu bạn thích cho nút, avatar và điểm nhấn"),
                 accentPalette,
+                settingLine("Màu chữ chính", "Áp dụng cho sidebar, chat, dialog và khung nhập"),
+                textPalette,
+                settingLine("Màu chữ phụ", "Áp dụng cho thời gian, preview, subtitle và ghi chú"),
+                mutedPalette,
+                settingLine("Cỡ chữ", "Điều chỉnh toàn app từ 12px đến 18px"),
+                fontSizeRow,
                 settingLine("Nền khung chat", "soft-blue, clean-white, mint, lavender, peach, night"),
                 backgroundPicker,
                 bandwidthSaving,
@@ -157,6 +181,9 @@ final class SettingsDialog {
                 userSettings.toastEnabled = toast.isSelected();
                 userSettings.theme = darkMode.isSelected() ? "dark" : "light";
                 userSettings.accentColor = selectedAccent[0];
+                userSettings.textColor = selectedTextColor[0];
+                userSettings.mutedColor = selectedMutedColor[0];
+                userSettings.fontSize = (int) Math.round(fontSizeSlider.getValue());
                 userSettings.chatBackground = backgroundPicker.getValue();
                 userSettings.bandwidthSaving = bandwidthSaving.isSelected();
                 userSettings.slackWebhookUrl = slackWebhook.getText().trim();
@@ -241,9 +268,13 @@ final class SettingsDialog {
     }
 
     private static VBox colorPalette(String[] selectedAccent) {
+        return colorPalette(selectedAccent, "#007aff", "#2f65ff", "#8b5cf6", "#14b8a6", "#ef4444", "#f59e0b");
+    }
+
+    private static VBox colorPalette(String[] selectedAccent, String... colors) {
         HBox row = new HBox(8);
         row.getStyleClass().add("color-palette");
-        for (String color : new String[]{"#007aff", "#2f65ff", "#8b5cf6", "#14b8a6", "#ef4444", "#f59e0b"}) {
+        for (String color : colors) {
             Button swatch = new Button();
             swatch.getStyleClass().add("color-swatch");
             swatch.setStyle("-fx-background-color: " + color + ";");
@@ -273,7 +304,7 @@ final class SettingsDialog {
         }
     }
 
-    private static void styleDialog(Dialog<?> dialog) {
+    private void styleDialog(Dialog<?> dialog) {
         String css = ChatApp.class.getResource("style.css") == null
                 ? null
                 : Objects.requireNonNull(ChatApp.class.getResource("style.css")).toExternalForm();
@@ -281,5 +312,42 @@ final class SettingsDialog {
             dialog.getDialogPane().getStylesheets().add(css);
         }
         dialog.getDialogPane().getStyleClass().add("custom-dialog");
+        dialog.getDialogPane().setStyle(personalizationStyle());
+    }
+
+    private String personalizationStyle() {
+        String accent = validHex(userSettings.accentColor) ? userSettings.accentColor : "#007aff";
+        String accentDark = darken(accent);
+        String accentSoft = rgba(accent, 0.15);
+        String text = validHex(userSettings.textColor) ? userSettings.textColor : "#f8fafc";
+        String muted = validHex(userSettings.mutedColor) ? userSettings.mutedColor : "#64748b";
+        int fontSize = Math.max(12, Math.min(18, userSettings.fontSize));
+        return String.join(" ",
+                "-app-primary: " + accent + ";",
+                "-app-primary-deep: " + accentDark + ";",
+                "-app-primary-soft: " + accentSoft + ";",
+                "-app-accent: " + accent + ";",
+                "-app-accent-dark: " + accentDark + ";",
+                "-app-text: " + text + ";",
+                "-app-muted: " + muted + ";",
+                "-app-font-size: " + fontSize + "px;",
+                "-fx-font-size: " + fontSize + "px;");
+    }
+
+    private static String darken(String hex) {
+        Color color = Color.web(validHex(hex) ? hex : "#007aff");
+        Color darker = color.deriveColor(0, 1.0, 0.78, 1.0);
+        return String.format("#%02x%02x%02x",
+                Math.round(darker.getRed() * 255),
+                Math.round(darker.getGreen() * 255),
+                Math.round(darker.getBlue() * 255));
+    }
+
+    private static String rgba(String hex, double alpha) {
+        Color color = Color.web(validHex(hex) ? hex : "#007aff");
+        int r = (int) Math.round(color.getRed() * 255);
+        int g = (int) Math.round(color.getGreen() * 255);
+        int b = (int) Math.round(color.getBlue() * 255);
+        return String.format("rgba(%d,%d,%d,%.2f)", r, g, b, Math.max(0, Math.min(1, alpha)));
     }
 }

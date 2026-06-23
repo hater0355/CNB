@@ -83,6 +83,19 @@ final class ChatAuthService {
         }
     }
 
+    boolean userExists(String username) throws Exception {
+        if (username == null || username.isBlank()) {
+            return false;
+        }
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "SELECT 1 FROM users WHERE username = ?")) {
+            ps.setString(1, username);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
     boolean isAdminUser(String username) throws Exception {
         try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
                 "SELECT role FROM users WHERE username = ?")) {
@@ -108,6 +121,23 @@ final class ChatAuthService {
                 "UPDATE admin_2fa_secrets SET enabled = FALSE, updated_at = NOW() WHERE username = ?")) {
             ps.setString(1, targetUsername);
             ps.executeUpdate();
+        }
+    }
+
+    void resetPasswordByAdmin(String targetUsername, String newPassword) throws Exception {
+        if (targetUsername == null || targetUsername.isBlank()) {
+            throw new IllegalArgumentException("Chưa nhập tài khoản cần reset.");
+        }
+        if (newPassword == null || newPassword.length() < 6) {
+            throw new IllegalArgumentException("Mật khẩu mới phải có ít nhất 6 ký tự.");
+        }
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "UPDATE users SET password = ? WHERE username = ?")) {
+            ps.setString(1, ENCODER.encode(newPassword));
+            ps.setString(2, targetUsername);
+            if (ps.executeUpdate() == 0) {
+                throw new IllegalArgumentException("Không tìm thấy tài khoản cần reset.");
+            }
         }
     }
 

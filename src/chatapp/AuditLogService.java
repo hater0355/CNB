@@ -20,7 +20,7 @@ final class AuditLogService {
             ps.setString(5, detail);
             ps.executeUpdate();
         } catch (Exception e) {
-            System.err.println("Audit log failed: " + e.getMessage());
+            AppLog.warn("Ghi audit log thất bại.", e);
         }
     }
 }

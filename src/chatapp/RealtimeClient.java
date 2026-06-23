@@ -23,6 +23,7 @@ final class RealtimeClient implements WebSocket.Listener {
     private volatile WebSocket socket;
     private volatile String username = "";
     private volatile String token = "";
+    private volatile boolean closedByUser;
     private final StringBuilder buffer = new StringBuilder();
 
     RealtimeClient(AppConfig config, Consumer<Map<String, String>> onEvent) {
@@ -33,6 +34,7 @@ final class RealtimeClient implements WebSocket.Listener {
     void connect(String username, String token) {
         this.username = username == null ? "" : username;
         this.token = token == null ? "" : token;
+        this.closedByUser = false;
         executor.submit(this::connectInternal);
     }
 
@@ -49,6 +51,7 @@ final class RealtimeClient implements WebSocket.Listener {
     }
 
     void close() {
+        closedByUser = true;
         WebSocket ws = socket;
         if (ws != null) {
             ws.sendClose(WebSocket.NORMAL_CLOSURE, "bye");
@@ -67,7 +70,8 @@ final class RealtimeClient implements WebSocket.Listener {
                     .join();
             sendAuth();
         } catch (Exception e) {
-            System.err.println("Realtime server unavailable: " + e.getMessage());
+            AppLog.warn("Realtime server chưa sẵn sàng, sẽ thử kết nối lại.", e);
+            scheduleReconnect();
         }
     }
 
@@ -102,12 +106,36 @@ final class RealtimeClient implements WebSocket.Listener {
     @Override
     public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
         socket = null;
+        if (!closedByUser) {
+            AppLog.warn("Realtime đã ngắt kết nối: " + statusCode + " " + reason);
+            scheduleReconnect();
+        }
         return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
     }
 
     @Override
     public void onError(WebSocket webSocket, Throwable error) {
         socket = null;
-        System.err.println("Realtime connection error: " + error.getMessage());
+        if (!closedByUser) {
+            AppLog.warn("Lỗi kết nối realtime, sẽ thử lại.", error);
+            scheduleReconnect();
+        }
+    }
+
+    private void scheduleReconnect() {
+        if (closedByUser || executor.isShutdown()) {
+            return;
+        }
+        executor.submit(() -> {
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            if (!closedByUser && socket == null) {
+                connectInternal();
+            }
+        });
     }
 }

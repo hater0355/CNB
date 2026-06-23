@@ -1,6 +1,7 @@
 package chatserver;
 
 import chatapp.AppConfig;
+import chatapp.AppLog;
 import chatapp.Database;
 import chatapp.SchemaManager;
 import chatapp.SecurityService;
@@ -32,11 +33,11 @@ public final class ChatServerApp {
         try {
             new SchemaManager(database).init();
         } catch (Exception e) {
-            System.err.println("Cannot initialize schema at startup. Server will keep running and retry bot jobs later: " + e.getMessage());
+            AppLog.warn("Không khởi tạo được schema lúc server mở. Server vẫn chạy và bot jobs sẽ thử lại sau.", e);
         }
         RealtimeServer server = new RealtimeServer(config, database);
         server.start();
-        System.out.println("CHAT_NOI_BO realtime server listening on ws://" + config.realtimeHost + ":" + config.realtimePort);
+        AppLog.info("Realtime server đang nghe tại ws://" + config.realtimeHost + ":" + config.realtimePort);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
                 server.stop(1000);
@@ -105,14 +106,14 @@ public final class ChatServerApp {
             try {
                 securityService.touchUser(String.valueOf(conn.getAttachment()));
             } catch (Exception e) {
-                System.err.println("Cannot update last seen: " + e.getMessage());
+                AppLog.warn("Không cập nhật được last seen.", e);
             }
             broadcast(message);
         }
 
         @Override
         public void onError(WebSocket conn, Exception ex) {
-            ex.printStackTrace();
+            AppLog.warn("Lỗi WebSocket server.", ex);
         }
 
         @Override
@@ -133,7 +134,7 @@ public final class ChatServerApp {
             try {
                 sendBirthdayMessages();
             } catch (Exception e) {
-                System.err.println("Birthday bot error: " + e.getMessage());
+                AppLog.warn("Birthday bot lỗi.", e);
             }
         }
 
@@ -142,7 +143,7 @@ public final class ChatServerApp {
                 sendDueScheduledMessages();
                 sendDueReminders();
             } catch (Exception e) {
-                System.err.println("Scheduled chat job error: " + e.getMessage());
+                AppLog.warn("Scheduled chat job lỗi.", e);
             }
         }
 
@@ -150,7 +151,7 @@ public final class ChatServerApp {
             try {
                 archiveOldMessages();
             } catch (Exception e) {
-                System.err.println("Archive old messages error: " + e.getMessage());
+                AppLog.warn("Archive tin nhắn cũ lỗi.", e);
             }
         }
 

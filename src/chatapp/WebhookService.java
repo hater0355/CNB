@@ -45,7 +45,7 @@ final class WebhookService {
                     .build();
             client.sendAsync(request, HttpResponse.BodyHandlers.discarding());
         } catch (Exception e) {
-            System.err.println("Webhook notification failed: " + e.getMessage());
+            AppLog.warn("Gửi webhook thất bại.", e);
         }
     }
 

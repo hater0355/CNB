@@ -5,6 +5,7 @@ import java.nio.file.Path;
 import java.util.Properties;
 
 public final class AppConfig {
+    public static final String DEFAULT_AUTH_TOKEN_SECRET = "CHAT_NOI_BO_CHANGE_ME_LOCAL_SECRET";
     public final String dbUrl;
     public final String dbUser;
     public final String dbPassword;
@@ -41,7 +42,7 @@ public final class AppConfig {
         realtimeHost = p.getProperty("chat.realtime.host", "0.0.0.0");
         realtimePort = Math.max(1, intProp(p, "chat.realtime.port", 8787));
         realtimeUrl = p.getProperty("chat.realtime.url", "ws://localhost:" + realtimePort);
-        authTokenSecret = p.getProperty("auth.token.secret", "CHAT_NOI_BO_CHANGE_ME_LOCAL_SECRET");
+        authTokenSecret = p.getProperty("auth.token.secret", DEFAULT_AUTH_TOKEN_SECRET);
         authSessionHours = Math.max(1, intProp(p, "auth.session.hours", 8));
         slackWebhookUrl = p.getProperty("integration.slack.webhook", "");
         teamsWebhookUrl = p.getProperty("integration.teams.webhook", "");
@@ -55,9 +56,17 @@ public final class AppConfig {
                 p.load(in);
             }
         } catch (Exception e) {
-            System.err.println("Cannot read chat.properties, using defaults: " + e.getMessage());
+            AppLog.warn("Không đọc được chat.properties, đang dùng cấu hình mặc định.", e);
         }
-        return new AppConfig(p);
+        AppConfig config = new AppConfig(p);
+        if (config.isDefaultAuthTokenSecret()) {
+            AppLog.warn("auth.token.secret vẫn là giá trị mặc định. Hãy đổi secret trước khi dùng thật trong mạng công ty.");
+        }
+        return config;
+    }
+
+    public boolean isDefaultAuthTokenSecret() {
+        return DEFAULT_AUTH_TOKEN_SECRET.equals(authTokenSecret);
     }
 
     private static int intProp(Properties p, String key, int fallback) {

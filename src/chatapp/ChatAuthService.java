@@ -70,6 +70,47 @@ final class ChatAuthService {
         }
     }
 
+    boolean verifyAdminCredentials(String username, String password) throws Exception {
+        String sql = "SELECT password, role FROM users WHERE username = ?";
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, username);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return false;
+                }
+                return isAdmin(rs.getString("role")) && matches(password, rs.getString("password"));
+            }
+        }
+    }
+
+    boolean isAdminUser(String username) throws Exception {
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "SELECT role FROM users WHERE username = ?")) {
+            ps.setString(1, username);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && isAdmin(rs.getString("role"));
+            }
+        }
+    }
+
+    boolean hasOtherAdmin(String targetUsername) throws Exception {
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "SELECT COUNT(*) FROM users WHERE username <> ? AND (UPPER(role) = 'ADMIN' OR UPPER(role) = 'ROLE_ADMIN')")) {
+            ps.setString(1, targetUsername);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        }
+    }
+
+    void resetTwoFactor(String targetUsername) throws Exception {
+        try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(
+                "UPDATE admin_2fa_secrets SET enabled = FALSE, updated_at = NOW() WHERE username = ?")) {
+            ps.setString(1, targetUsername);
+            ps.executeUpdate();
+        }
+    }
+
     private CurrentUser loadApprovedEmployee(Connection c, String username, String fullName, String role) throws Exception {
         String sql = "SELECT id, name, account_username, department, position, status FROM employees WHERE login_username = ? ORDER BY ngay_vao_lam DESC LIMIT 1";
         try (PreparedStatement ps = c.prepareStatement(sql)) {

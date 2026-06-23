@@ -53,16 +53,12 @@ import javafx.scene.control.ContextMenu;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.PasswordField;
-import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SeparatorMenuItem;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
@@ -87,7 +83,6 @@ import javafx.util.Duration;
 
 public class ChatApp extends Application {
     private static final DateTimeFormatter MESSAGE_TIME = DateTimeFormatter.ofPattern("HH:mm");
-    private static final DateTimeFormatter CONVERSATION_TIME = DateTimeFormatter.ofPattern("dd/MM");
     private static final DateTimeFormatter TASK_TIME = DateTimeFormatter.ofPattern("dd/MM HH:mm");
 
     private final AppConfig config = AppConfig.load();
@@ -131,15 +126,10 @@ public class ChatApp extends Application {
     private Button exportConversationButton;
     private Button advancedSearchButton;
     private Button taskDrawerButton;
-    private VBox taskDrawer;
-    private VBox taskListBox;
-    private ProgressBar taskProgress;
-    private Label taskProgressLabel;
-    private Label taskTotalLabel;
-    private Label taskDoingLabel;
-    private Label taskOverdueLabel;
+    private TaskDrawerPanel taskDrawer;
     private HBox sidebar;
     private VBox conversationPanel;
+    private VBox navRail;
     private VBox navItemsBox;
     private Button notificationsNavButton;
     private Button tasksNavButton;
@@ -179,7 +169,7 @@ public class ChatApp extends Application {
     @Override
     public void start(Stage primaryStage) {
         stage = primaryStage;
-        stage.setTitle("Chat nội bộ công ty");
+        stage.setTitle("Chat nÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i bÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ cÃƒÆ’Ã‚Â´ng ty");
         showLogin();
     }
 
@@ -197,19 +187,19 @@ public class ChatApp extends Application {
     private void showLogin() {
         Label logo = new Label("C");
         logo.getStyleClass().add("login-logo");
-        Label title = new Label("Chat nội bộ");
+        Label title = new Label("Chat nÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i bÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢");
         title.getStyleClass().add("login-title");
-        Label subtitle = new Label("Đăng nhập bằng tài khoản công ty");
+        Label subtitle = new Label("Ãƒâ€žÃ‚ÂÃƒâ€žÃ†â€™ng nhÃƒÂ¡Ã‚ÂºÃ‚Â­p bÃƒÂ¡Ã‚ÂºÃ‚Â±ng tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n cÃƒÆ’Ã‚Â´ng ty");
         subtitle.getStyleClass().add("login-subtitle");
 
         TextField username = new TextField();
-        username.setPromptText("Tên tài khoản");
+        username.setPromptText("TÃƒÆ’Ã‚Âªn tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n");
         username.getStyleClass().add("login-input");
         PasswordField password = new PasswordField();
-        password.setPromptText("Mật khẩu");
+        password.setPromptText("MÃƒÂ¡Ã‚ÂºÃ‚Â­t khÃƒÂ¡Ã‚ÂºÃ‚Â©u");
         password.getStyleClass().add("login-input");
 
-        Button login = new Button("Đăng nhập");
+        Button login = new Button("Ãƒâ€žÃ‚ÂÃƒâ€žÃ†â€™ng nhÃƒÂ¡Ã‚ÂºÃ‚Â­p");
         login.getStyleClass().add("primary-button");
         login.setMaxWidth(Double.MAX_VALUE);
 
@@ -231,13 +221,13 @@ public class ChatApp extends Application {
             }, ok -> {
                 login.setDisable(false);
                 if (!ok) {
-                    status.setText("Sai tài khoản/mật khẩu hoặc tài khoản nhân viên chưa được duyệt.");
+                    status.setText("Sai tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n/mÃƒÂ¡Ã‚ÂºÃ‚Â­t khÃƒÂ¡Ã‚ÂºÃ‚Â©u hoÃƒÂ¡Ã‚ÂºÃ‚Â·c tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n nhÃƒÆ’Ã‚Â¢n viÃƒÆ’Ã‚Âªn chÃƒâ€ Ã‚Â°a Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c duyÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡t.");
                     return;
                 }
                 handlePostPasswordLogin(status);
             }, e -> {
                 login.setDisable(false);
-                status.setText("Không thể kết nối: " + e.getMessage());
+                status.setText("KhÃƒÆ’Ã‚Â´ng thÃƒÂ¡Ã‚Â»Ã†â€™ kÃƒÂ¡Ã‚ÂºÃ‚Â¿t nÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi: " + e.getMessage());
             });
         };
 
@@ -271,7 +261,7 @@ public class ChatApp extends Application {
                 } else {
                     setupAdminTwoFactor(status);
                 }
-            }, e -> status.setText("Không kiểm tra được 2FA: " + e.getMessage()));
+            }, e -> status.setText("KhÃƒÆ’Ã‚Â´ng kiÃƒÂ¡Ã‚Â»Ã†â€™m tra Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c 2FA: " + e.getMessage()));
             return;
         }
         finishLogin(status);
@@ -280,25 +270,25 @@ public class ChatApp extends Application {
     private void setupAdminTwoFactor(Label status) {
         String secret = securityService.generateTotpSecret();
         Dialog<String> dialog = new Dialog<>();
-        dialog.setTitle("Thiết lập 2FA Admin");
+        dialog.setTitle("ThiÃƒÂ¡Ã‚ÂºÃ‚Â¿t lÃƒÂ¡Ã‚ÂºÃ‚Â­p 2FA Admin");
         styleDialog(dialog);
-        ButtonType verify = new ButtonType("Xác nhận", ButtonBar.ButtonData.OK_DONE);
+        ButtonType verify = new ButtonType("XÃƒÆ’Ã‚Â¡c nhÃƒÂ¡Ã‚ÂºÃ‚Â­n", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(verify, ButtonType.CANCEL);
         TextField code = new TextField();
         code.getStyleClass().add("login-input");
         String currentCode = securityService.currentTotp(secret);
         VBox content = new VBox(10,
-                label("Lưu secret này vào ứng dụng OTP:", "dialog-label"),
+                label("LÃƒâ€ Ã‚Â°u secret nÃƒÆ’Ã‚Â y vÃƒÆ’Ã‚Â o ÃƒÂ¡Ã‚Â»Ã‚Â©ng dÃƒÂ¡Ã‚Â»Ã‚Â¥ng OTP:", "dialog-label"),
                 settingLine("Secret", secret),
-                settingLine("Mã hiện tại", currentCode),
-                label("Nhập mã OTP để bật 2FA:", "dialog-label"),
+                settingLine("MÃƒÆ’Ã‚Â£ hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n tÃƒÂ¡Ã‚ÂºÃ‚Â¡i", currentCode),
+                label("NhÃƒÂ¡Ã‚ÂºÃ‚Â­p mÃƒÆ’Ã‚Â£ OTP Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã†â€™ bÃƒÂ¡Ã‚ÂºÃ‚Â­t 2FA:", "dialog-label"),
                 code);
         content.getStyleClass().add("dialog-content");
         dialog.getDialogPane().setContent(content);
         dialog.setResultConverter(btn -> btn == verify ? code.getText() : null);
         dialog.showAndWait().ifPresentOrElse(value -> {
             if (!securityService.verifyTotp(secret, value)) {
-                status.setText("Mã 2FA không đúng.");
+                status.setText("MÃƒÆ’Ã‚Â£ 2FA khÃƒÆ’Ã‚Â´ng Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Âºng.");
                 auditLogService.log(currentUser.username, "2FA_SETUP_FAILED", "USER", currentUser.username, "");
                 return;
             }
@@ -306,19 +296,25 @@ public class ChatApp extends Application {
                 authService.saveTwoFactorSecret(currentUser.username, secret);
                 auditLogService.log(currentUser.username, "2FA_ENABLED", "USER", currentUser.username, "");
                 return true;
-            }, ok -> finishLogin(status), e -> status.setText("Không lưu được 2FA: " + e.getMessage()));
-        }, () -> status.setText("Admin cần bật 2FA để đăng nhập."));
+            }, ok -> finishLogin(status), e -> status.setText("KhÃƒÆ’Ã‚Â´ng lÃƒâ€ Ã‚Â°u Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c 2FA: " + e.getMessage()));
+        }, () -> status.setText("Admin cÃƒÂ¡Ã‚ÂºÃ‚Â§n bÃƒÂ¡Ã‚ÂºÃ‚Â­t 2FA Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã†â€™ Ãƒâ€žÃ¢â‚¬ËœÃƒâ€žÃ†â€™ng nhÃƒÂ¡Ã‚ÂºÃ‚Â­p."));
     }
 
     private void verifyAdminTwoFactor(Label status) {
         Dialog<String> dialog = new Dialog<>();
-        dialog.setTitle("Xác thực 2FA");
+        dialog.setTitle("XÃƒÆ’Ã‚Â¡c thÃƒÂ¡Ã‚Â»Ã‚Â±c 2FA");
         styleDialog(dialog);
-        ButtonType verify = new ButtonType("Xác nhận", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(verify, ButtonType.CANCEL);
+        ButtonType verify = new ButtonType("XÃƒÆ’Ã‚Â¡c nhÃƒÂ¡Ã‚ÂºÃ‚Â­n", ButtonBar.ButtonData.OK_DONE);
+        ButtonType forgot = new ButtonType("QuÃƒÆ’Ã‚Âªn mÃƒÆ’Ã‚Â£ 2FA?", ButtonBar.ButtonData.LEFT);
+        dialog.getDialogPane().getButtonTypes().addAll(forgot, verify, ButtonType.CANCEL);
         TextField code = new TextField();
         code.getStyleClass().add("login-input");
-        dialog.getDialogPane().setContent(new VBox(10, label("Nhập mã OTP admin", "dialog-label"), code));
+        dialog.getDialogPane().setContent(new VBox(10, label("NhÃƒÂ¡Ã‚ÂºÃ‚Â­p mÃƒÆ’Ã‚Â£ OTP admin", "dialog-label"), code));
+        Node forgotButton = dialog.getDialogPane().lookupButton(forgot);
+        forgotButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            event.consume();
+            showTwoFactorResetDialog(status);
+        });
         dialog.setResultConverter(btn -> btn == verify ? code.getText() : null);
         dialog.showAndWait().ifPresentOrElse(value -> runDb(() -> {
             String secret = authService.twoFactorSecret(currentUser.username);
@@ -329,9 +325,63 @@ public class ChatApp extends Application {
                 finishLogin(status);
             } else {
                 auditLogService.log(currentUser.username, "2FA_FAILED", "USER", currentUser.username, "");
-                status.setText("Mã 2FA không đúng.");
+                status.setText("MÃƒÆ’Ã‚Â£ 2FA khÃƒÆ’Ã‚Â´ng Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Âºng.");
             }
-        }, e -> status.setText("Không xác thực được 2FA: " + e.getMessage())), () -> status.setText("Bạn đã hủy xác thực 2FA."));
+        }, e -> status.setText("KhÃƒÆ’Ã‚Â´ng xÃƒÆ’Ã‚Â¡c thÃƒÂ¡Ã‚Â»Ã‚Â±c Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c 2FA: " + e.getMessage())), () -> status.setText("BÃƒÂ¡Ã‚ÂºÃ‚Â¡n Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ hÃƒÂ¡Ã‚Â»Ã‚Â§y xÃƒÆ’Ã‚Â¡c thÃƒÂ¡Ã‚Â»Ã‚Â±c 2FA."));
+    }
+
+    private void showTwoFactorResetDialog(Label status) {
+        Dialog<TwoFactorResetRequest> dialog = new Dialog<>();
+        dialog.setTitle("KhÃƒÆ’Ã‚Â´i phÃƒÂ¡Ã‚Â»Ã‚Â¥c 2FA Admin");
+        styleDialog(dialog);
+        ButtonType reset = new ButtonType("Reset 2FA", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(reset, ButtonType.CANCEL);
+
+        TextField target = new TextField(currentUser == null ? "" : currentUser.username);
+        target.setPromptText("Admin cÃƒÂ¡Ã‚ÂºÃ‚Â§n reset 2FA");
+        target.getStyleClass().add("login-input");
+        TextField confirmer = new TextField();
+        confirmer.setPromptText("Admin xÃƒÆ’Ã‚Â¡c nhÃƒÂ¡Ã‚ÂºÃ‚Â­n");
+        confirmer.getStyleClass().add("login-input");
+        PasswordField confirmerPassword = new PasswordField();
+        confirmerPassword.setPromptText("MÃƒÂ¡Ã‚ÂºÃ‚Â­t khÃƒÂ¡Ã‚ÂºÃ‚Â©u admin xÃƒÆ’Ã‚Â¡c nhÃƒÂ¡Ã‚ÂºÃ‚Â­n");
+        confirmerPassword.getStyleClass().add("login-input");
+
+        VBox content = new VBox(10,
+                label("YÃƒÆ’Ã‚Âªu cÃƒÂ¡Ã‚ÂºÃ‚Â§u mÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢t admin khÃƒÆ’Ã‚Â¡c xÃƒÆ’Ã‚Â¡c nhÃƒÂ¡Ã‚ÂºÃ‚Â­n Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã†â€™ reset 2FA.", "dialog-label"),
+                target,
+                confirmer,
+                confirmerPassword,
+                label("Sau khi reset, admin nÃƒÆ’Ã‚Â y phÃƒÂ¡Ã‚ÂºÃ‚Â£i thiÃƒÂ¡Ã‚ÂºÃ‚Â¿t lÃƒÂ¡Ã‚ÂºÃ‚Â­p lÃƒÂ¡Ã‚ÂºÃ‚Â¡i 2FA ÃƒÂ¡Ã‚Â»Ã…Â¸ lÃƒÂ¡Ã‚ÂºÃ‚Â§n Ãƒâ€žÃ¢â‚¬ËœÃƒâ€žÃ†â€™ng nhÃƒÂ¡Ã‚ÂºÃ‚Â­p tiÃƒÂ¡Ã‚ÂºÃ‚Â¿p theo.", "settings-note"));
+        content.getStyleClass().add("dialog-content");
+        dialog.getDialogPane().setContent(content);
+        dialog.setResultConverter(btn -> btn == reset
+                ? new TwoFactorResetRequest(target.getText().trim(), confirmer.getText().trim(), confirmerPassword.getText())
+                : null);
+        dialog.showAndWait().ifPresent(request -> {
+            if (request.targetUsername.isBlank() || request.confirmerUsername.isBlank() || request.confirmerPassword.isBlank()) {
+                status.setText("Vui lÃƒÆ’Ã‚Â²ng nhÃƒÂ¡Ã‚ÂºÃ‚Â­p Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â§ tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n cÃƒÂ¡Ã‚ÂºÃ‚Â§n reset vÃƒÆ’Ã‚Â  admin xÃƒÆ’Ã‚Â¡c nhÃƒÂ¡Ã‚ÂºÃ‚Â­n.");
+                return;
+            }
+            runDb(() -> {
+                if (!authService.isAdminUser(request.targetUsername)) {
+                    throw new IllegalArgumentException("TÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n cÃƒÂ¡Ã‚ÂºÃ‚Â§n reset khÃƒÆ’Ã‚Â´ng phÃƒÂ¡Ã‚ÂºÃ‚Â£i admin.");
+                }
+                if (request.targetUsername.equalsIgnoreCase(request.confirmerUsername)) {
+                    throw new IllegalArgumentException("KhÃƒÆ’Ã‚Â´ng thÃƒÂ¡Ã‚Â»Ã†â€™ tÃƒÂ¡Ã‚Â»Ã‚Â± reset 2FA cÃƒÂ¡Ã‚Â»Ã‚Â§a chÃƒÆ’Ã‚Â­nh mÃƒÆ’Ã‚Â¬nh.");
+                }
+                if (!authService.hasOtherAdmin(request.targetUsername)) {
+                    throw new IllegalArgumentException("KhÃƒÆ’Ã‚Â´ng cÃƒÆ’Ã‚Â³ admin khÃƒÆ’Ã‚Â¡c Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã†â€™ xÃƒÆ’Ã‚Â¡c nhÃƒÂ¡Ã‚ÂºÃ‚Â­n. Vui lÃƒÆ’Ã‚Â²ng liÃƒÆ’Ã‚Âªn hÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡ IT/quÃƒÂ¡Ã‚ÂºÃ‚Â£n trÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ database.");
+                }
+                if (!authService.verifyAdminCredentials(request.confirmerUsername, request.confirmerPassword)) {
+                    throw new IllegalArgumentException("Admin xÃƒÆ’Ã‚Â¡c nhÃƒÂ¡Ã‚ÂºÃ‚Â­n khÃƒÆ’Ã‚Â´ng hÃƒÂ¡Ã‚Â»Ã‚Â£p lÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡ hoÃƒÂ¡Ã‚ÂºÃ‚Â·c sai mÃƒÂ¡Ã‚ÂºÃ‚Â­t khÃƒÂ¡Ã‚ÂºÃ‚Â©u.");
+                }
+                authService.resetTwoFactor(request.targetUsername);
+                auditLogService.log(request.confirmerUsername, "2FA_RESET", "USER", request.targetUsername, "Reset by another admin");
+                return true;
+            }, ok -> status.setText("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ reset 2FA. Admin cÃƒÂ¡Ã‚ÂºÃ‚Â§n thiÃƒÂ¡Ã‚ÂºÃ‚Â¿t lÃƒÂ¡Ã‚ÂºÃ‚Â­p lÃƒÂ¡Ã‚ÂºÃ‚Â¡i ÃƒÂ¡Ã‚Â»Ã…Â¸ lÃƒÂ¡Ã‚ÂºÃ‚Â§n Ãƒâ€žÃ¢â‚¬ËœÃƒâ€žÃ†â€™ng nhÃƒÂ¡Ã‚ÂºÃ‚Â­p tiÃƒÂ¡Ã‚ÂºÃ‚Â¿p theo."),
+                    e -> status.setText(e.getMessage()));
+        });
     }
 
     private void finishLogin(Label status) {
@@ -342,7 +392,7 @@ public class ChatApp extends Application {
             sessionToken = securityService.createSession(currentUser);
             auditLogService.log(currentUser.username, "LOGIN_SUCCESS", "USER", currentUser.username, "");
             return true;
-        }, ok -> showChat(), e -> status.setText("Không thể khởi tạo phiên chat: " + e.getMessage()));
+        }, ok -> showChat(), e -> status.setText("KhÃƒÆ’Ã‚Â´ng thÃƒÂ¡Ã‚Â»Ã†â€™ khÃƒÂ¡Ã‚Â»Ã…Â¸i tÃƒÂ¡Ã‚ÂºÃ‚Â¡o phiÃƒÆ’Ã‚Âªn chat: " + e.getMessage()));
     }
 
     private void showChat() {
@@ -364,7 +414,7 @@ public class ChatApp extends Application {
     private Node buildWorkspace() {
         Node sidebar = buildSidebar();
         Node chatPane = buildChatPane();
-        HBox workspace = new HBox(12, sidebar, chatPane);
+        HBox workspace = new HBox(10, sidebar, chatPane);
         workspace.getStyleClass().add("workspace");
         HBox.setHgrow(chatPane, Priority.ALWAYS);
         return workspace;
@@ -384,9 +434,9 @@ public class ChatApp extends Application {
         StackPane.setAlignment(presenceDot, Pos.BOTTOM_RIGHT);
         Label name = new Label(currentUser.displayName);
         name.getStyleClass().add("profile-name");
-        Label role = new Label((currentUser.isAdmin() ? "Quản trị viên" : "Nhân viên") + " - " + currentUser.companyOwner);
+        Label role = new Label((currentUser.isAdmin() ? "QuÃƒÂ¡Ã‚ÂºÃ‚Â£n trÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ viÃƒÆ’Ã‚Âªn" : "NhÃƒÆ’Ã‚Â¢n viÃƒÆ’Ã‚Âªn") + " - " + currentUser.companyOwner);
         role.getStyleClass().add("profile-role");
-        Button accountMenu = iconButton("chevron", "Tài khoản", "account-menu-button");
+        Button accountMenu = iconButton("chevron", "TÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n", "account-menu-button");
         accountMenu.setOnAction(e -> showAccountMenu(accountMenu));
         HBox profileName = new HBox(4, name, accountMenu);
         profileName.setAlignment(Pos.CENTER);
@@ -397,20 +447,20 @@ public class ChatApp extends Application {
         profile.setAlignment(Pos.CENTER);
         profile.getStyleClass().add("profile-bar");
 
-        Button homeNav = navItem("home", "HOME", false, this::showNotificationsPanel);
-        Button chatNav = navItem("chat", "CHAT", true, this::rebuildSidebarOnly);
-        Button contactNav = navItem("contact", "CONTACT", false, this::showContactPanel);
-        notificationsNavButton = navItem("bell", "NOTIFICATIONS", false, this::showNotificationsPanel);
-        tasksNavButton = navItem("tasks", "TASKS", false, this::showMyTasksPanel);
-        Button calendarNav = navItem("calendar", "CALENDAR", false, this::showCalendarPanel);
-        Button settingsNav = navItem("settings", "SETTINGS", false, this::showSettingsDialog);
+        Button homeNav = navItem("home", "TÃƒÂ¡Ã‚Â»Ã¢â‚¬ÂNG QUAN", "HOME", this::showHomePanel);
+        Button chatNav = navItem("chat", "CHAT", "CHAT", this::rebuildSidebarOnly);
+        Button contactNav = navItem("contact", "CONTACT", "CONTACT", this::showContactPanel);
+        notificationsNavButton = navItem("bell", "THÃƒÆ’Ã¢â‚¬ÂNG BÃƒÆ’Ã‚ÂO", "NOTIFICATIONS", this::showNotificationsPanel);
+        tasksNavButton = navItem("tasks", "TASKS", "TASKS", this::showMyTasksPanel);
+        Button calendarNav = navItem("calendar", "CALENDAR", "CALENDAR", this::showCalendarPanel);
+        Button settingsNav = navItem("settings", "SETTINGS", "SETTINGS", this::showSettingsDialog);
         navItemsBox = new VBox(10, homeNav, chatNav, contactNav, notificationsNavButton, tasksNavButton, calendarNav, settingsNav);
         navItemsBox.getStyleClass().add("nav-items");
         VBox.setVgrow(navItemsBox, Priority.ALWAYS);
-        Button collapse = navItem("collapse", "COLLAPSE", false, this::toggleSidebarCollapsed);
-        Button logout = navItem("logout", "LOG OUT", false, this::logoutAndExit);
+        Button collapse = navItem("collapse", "COLLAPSE", null, this::toggleSidebarCollapsed);
+        Button logout = navItem("logout", "LOG OUT", null, this::logoutAndExit);
         logout.getStyleClass().add("logout-nav-item");
-        VBox navRail = new VBox(24, profile, navItemsBox, collapse, logout);
+        navRail = new VBox(24, profile, navItemsBox, collapse, logout);
         navRail.getStyleClass().add("nav-rail");
         navRail.setAlignment(Pos.TOP_CENTER);
         navRail.setPrefWidth(142);
@@ -422,7 +472,7 @@ public class ChatApp extends Application {
         panelSub.getStyleClass().add("sidebar-subtitle");
         VBox titleBlock = new VBox(2, panelTitle, panelSub);
         HBox.setHgrow(titleBlock, Priority.ALWAYS);
-        Button newDirect = new Button("Create New Chat");
+        Button newDirect = new Button("Chat mÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºi");
         newDirect.getStyleClass().add("sidebar-action");
         newDirect.setGraphic(svgIcon("new-chat", 15));
         installHoverScale(newDirect, 1.025);
@@ -432,21 +482,21 @@ public class ChatApp extends Application {
         panelHeader.setAlignment(Pos.CENTER_LEFT);
 
         conversationSearch = new TextField();
-        conversationSearch.setPromptText("Search");
+        conversationSearch.setPromptText("TÃƒÆ’Ã‚Â¬m hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i");
         conversationSearch.getStyleClass().add("search-field");
         installFocusScale(conversationSearch);
         conversationSearch.textProperty().addListener((obs, old, value) -> refreshConversationFilter());
         Label searchIcon = new Label();
         searchIcon.setGraphic(svgIcon("search", 15));
         searchIcon.getStyleClass().add("search-icon");
-        Label filter = new Label("Messages");
+        Label filter = new Label("Tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n");
         filter.getStyleClass().add("search-filter");
         HBox searchRow = new HBox(8, searchIcon, conversationSearch, filter);
         searchRow.getStyleClass().add("search-row");
         searchRow.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(conversationSearch, Priority.ALWAYS);
 
-        newGroupButton = new Button("Nhóm");
+        newGroupButton = new Button("NhÃƒÆ’Ã‚Â³m");
         newGroupButton.getStyleClass().add("sidebar-action");
         newGroupButton.setGraphic(svgIcon("users", 15));
         installHoverScale(newGroupButton, 1.025);
@@ -459,7 +509,7 @@ public class ChatApp extends Application {
 
         conversationList = new ListView<>(visibleConversations);
         conversationList.getStyleClass().add("conversation-list");
-        conversationList.setCellFactory(list -> new ConversationCell());
+        conversationList.setCellFactory(list -> new SidebarCells.ConversationCell());
         conversationList.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
             if (selected != null && !loadingConversations) {
                 currentConversation = selected;
@@ -479,18 +529,49 @@ public class ChatApp extends Application {
         return sidebar;
     }
 
-    private Button navItem(String icon, String text, boolean active, Runnable action) {
+    private Button navItem(String icon, String text, String navKey, Runnable action) {
         Button button = new Button(text);
-        button.setGraphic(svgIcon(icon, 15));
+        button.setGraphic(iconBadge(icon, 19, "nav-icon-wrap"));
         button.getStyleClass().add("nav-item");
-        if (active) {
+        button.setUserData(navKey);
+        if (navKey != null && navKey.equals(activeNav)) {
             button.getStyleClass().add("nav-item-active");
         }
         button.setMaxWidth(Double.MAX_VALUE);
         button.setAlignment(Pos.CENTER_LEFT);
-        button.setOnAction(e -> action.run());
+        button.setOnAction(e -> {
+            if (navKey != null) {
+                activeNav = navKey;
+                refreshNavActiveStyles();
+            }
+            action.run();
+        });
         installHoverScale(button, 1.02);
         return button;
+    }
+
+    private Node iconBadge(String iconName, double size, String styleClass) {
+        StackPane badge = new StackPane(svgIcon(iconName, size));
+        badge.getStyleClass().add(styleClass);
+        badge.setMinSize(34, 34);
+        badge.setPrefSize(34, 34);
+        badge.setMaxSize(34, 34);
+        return badge;
+    }
+
+    private void refreshNavActiveStyles() {
+        if (navItemsBox == null) return;
+        for (Node node : navItemsBox.getChildren()) {
+            if (node instanceof Button button) {
+                Object key = button.getUserData();
+                boolean active = key != null && key.equals(activeNav);
+                if (active && !button.getStyleClass().contains("nav-item-active")) {
+                    button.getStyleClass().add("nav-item-active");
+                } else if (!active) {
+                    button.getStyleClass().remove("nav-item-active");
+                }
+            }
+        }
     }
 
     private Button chipButton(String text, Runnable action) {
@@ -508,12 +589,12 @@ public class ChatApp extends Application {
 
     private HBox filterRow() {
         HBox row = new HBox(7,
-                chipButton("Tất cả", () -> setConversationFilter("ALL")),
-                chipButton("Chưa đọc", () -> setConversationFilter("UNREAD")),
+                chipButton("TÃƒÂ¡Ã‚ÂºÃ‚Â¥t cÃƒÂ¡Ã‚ÂºÃ‚Â£", () -> setConversationFilter("ALL")),
+                chipButton("ChÃƒâ€ Ã‚Â°a Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Âc", () -> setConversationFilter("UNREAD")),
                 chipButton("1-1", () -> setConversationFilter("DIRECT")),
-                chipButton("Nhóm", () -> setConversationFilter("GROUP")),
-                chipButton("Có task", () -> setConversationFilter("TASK")),
-                chipButton("Đã ghim", () -> setConversationFilter("PINNED")));
+                chipButton("NhÃƒÆ’Ã‚Â³m", () -> setConversationFilter("GROUP")),
+                chipButton("CÃƒÆ’Ã‚Â³ task", () -> setConversationFilter("TASK")),
+                chipButton("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ ghim", () -> setConversationFilter("PINNED")));
         row.getStyleClass().add("filter-row");
         return row;
     }
@@ -521,7 +602,7 @@ public class ChatApp extends Application {
     private HBox searchModeRow() {
         HBox row = new HBox(7,
                 chipButton("Chat", () -> searchMode = "CHAT"),
-                chipButton("Người", () -> {
+                chipButton("NgÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âi", () -> {
                     searchMode = "USER";
                     showContactPanel();
                 }),
@@ -529,8 +610,8 @@ public class ChatApp extends Application {
                     searchMode = "TASK";
                     showMyTasksPanel();
                 }),
-                chipButton("Tin", () -> showToast("Tìm tin nhắn sẽ được bổ sung.")),
-                chipButton("File", () -> showToast("Tìm file sẽ được bổ sung.")));
+                chipButton("Tin", () -> showToast("TÃƒÆ’Ã‚Â¬m tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n sÃƒÂ¡Ã‚ÂºÃ‚Â½ Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c bÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ sung.")),
+                chipButton("File", () -> showToast("TÃƒÆ’Ã‚Â¬m file sÃƒÂ¡Ã‚ÂºÃ‚Â½ Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c bÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ sung.")));
         row.getStyleClass().add("filter-row");
         return row;
     }
@@ -553,21 +634,101 @@ public class ChatApp extends Application {
     }
 
     private void rebuildSidebarOnly() {
+        activeNav = "CHAT";
         if (appRoot != null) {
             appRoot.setCenter(buildWorkspace());
             refreshConversationFilter();
+        } else {
+            refreshNavActiveStyles();
         }
     }
 
+    private void showHomePanel() {
+        activeNav = "HOME";
+        refreshNavActiveStyles();
+        int unread = conversations.stream().mapToInt(c -> c.unreadCount).sum();
+        runDb(() -> {
+            List<ChatTask> tasks = chatService.listTasksForUser(currentUser);
+            LocalDate today = LocalDate.now();
+            int dueToday = (int) tasks.stream()
+                    .filter(t -> t.deadline != null && !"DONE".equals(t.status))
+                    .filter(t -> t.deadline.toLocalDate().equals(today))
+                    .count();
+            return new HomeSummary(
+                    unread,
+                    chatService.countOverdueTasks(currentUser),
+                    chatService.listMentionsForUser(currentUser).size(),
+                    chatService.countPendingWorkflows(currentUser),
+                    dueToday);
+        }, summary -> {
+            if (summary != null) {
+                Node content = HomePanel.build(summary, this::openFirstUnreadConversation, this::showMyTasksPanel, this::showNotificationsPanel, this::showCalendarPanel);
+                showSidebarPage("TÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ng quan hÃƒÆ’Ã‚Â´m nay", "CÃƒÆ’Ã‚Â¡c viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c cÃƒÂ¡Ã‚ÂºÃ‚Â§n chÃƒÆ’Ã‚Âº ÃƒÆ’Ã‚Â½ ngay", content);
+                return;
+            }
+            VBox metrics = new VBox(10,
+                    settingLine("Tin chÃƒâ€ Ã‚Â°a Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Âc", String.valueOf(summary.unread())),
+                    settingLine("Task quÃƒÆ’Ã‚Â¡ hÃƒÂ¡Ã‚ÂºÃ‚Â¡n", String.valueOf(summary.overdueTasks())),
+                    settingLine("Workflow chÃƒÂ¡Ã‚Â»Ã‚Â duyÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡t", String.valueOf(summary.pendingWorkflows())),
+                    settingLine("Deadline hÃƒÆ’Ã‚Â´m nay", String.valueOf(summary.dueToday())),
+                    settingLine("NhÃƒÂ¡Ã‚ÂºÃ‚Â¯c Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â¿n tÃƒÆ’Ã‚Â´i", String.valueOf(summary.mentions())));
+            metrics.getStyleClass().add("settings-section");
+
+            Button openUnread = new Button("MÃƒÂ¡Ã‚Â»Ã…Â¸ chat chÃƒâ€ Ã‚Â°a Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Âc");
+            openUnread.getStyleClass().add("sidebar-action");
+            openUnread.setGraphic(svgIcon("chat", 15));
+            openUnread.setOnAction(e -> openFirstUnreadConversation());
+
+            Button myTasks = new Button("ViÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c cÃƒÂ¡Ã‚Â»Ã‚Â§a tÃƒÆ’Ã‚Â´i");
+            myTasks.getStyleClass().add("sidebar-action");
+            myTasks.setGraphic(svgIcon("tasks", 15));
+            myTasks.setOnAction(e -> showMyTasksPanel());
+
+            Button workflows = new Button("Workflow chÃƒÂ¡Ã‚Â»Ã‚Â duyÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡t");
+            workflows.getStyleClass().add("sidebar-action");
+            workflows.setGraphic(svgIcon("bell", 15));
+            workflows.setOnAction(e -> showNotificationsPanel());
+
+            Button calendar = new Button("LÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ch tuÃƒÂ¡Ã‚ÂºÃ‚Â§n nÃƒÆ’Ã‚Â y");
+            calendar.getStyleClass().add("sidebar-action");
+            calendar.setGraphic(svgIcon("calendar", 15));
+            calendar.setOnAction(e -> showCalendarPanel());
+
+            for (Button button : List.of(openUnread, myTasks, workflows, calendar)) {
+                button.setMaxWidth(Double.MAX_VALUE);
+                installHoverScale(button, 1.02);
+            }
+
+            VBox quickActions = new VBox(10, openUnread, myTasks, workflows, calendar);
+            quickActions.getStyleClass().add("settings-section");
+
+            VBox content = new VBox(12, metrics, quickActions);
+            content.getStyleClass().add("sidebar-page-list");
+            if (summary.unread() == 0 && summary.overdueTasks() == 0 && summary.pendingWorkflows() == 0 && summary.dueToday() == 0 && summary.mentions() == 0) {
+                content.getChildren().add(emptyState("HÃƒÆ’Ã‚Â´m nay khÃƒÆ’Ã‚Â¡ yÃƒÆ’Ã‚Âªn tÃƒâ€žÃ‚Â©nh", "KhÃƒÆ’Ã‚Â´ng cÃƒÆ’Ã‚Â³ tin chÃƒâ€ Ã‚Â°a Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Âc, task quÃƒÆ’Ã‚Â¡ hÃƒÂ¡Ã‚ÂºÃ‚Â¡n hoÃƒÂ¡Ã‚ÂºÃ‚Â·c deadline cÃƒÂ¡Ã‚ÂºÃ‚Â§n xÃƒÂ¡Ã‚Â»Ã‚Â­ lÃƒÆ’Ã‚Â½ ngay."));
+            }
+            showSidebarPage("TÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ng quan hÃƒÆ’Ã‚Â´m nay", "CÃƒÆ’Ã‚Â¡c viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c cÃƒÂ¡Ã‚ÂºÃ‚Â§n chÃƒÆ’Ã‚Âº ÃƒÆ’Ã‚Â½ ngay", content);
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â£i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c tÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ng quan", e));
+    }
+
+    private void openFirstUnreadConversation() {
+        conversations.stream()
+                .filter(c -> c.unreadCount > 0)
+                .findFirst()
+                .ifPresentOrElse(conversation -> selectConversation(conversation.id), () -> showInfo("KhÃƒÆ’Ã‚Â´ng cÃƒÆ’Ã‚Â³ hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i chÃƒâ€ Ã‚Â°a Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Âc."));
+    }
+
     private void showContactPanel() {
+        activeNav = "CONTACT";
+        refreshNavActiveStyles();
         runDb(() -> chatService.listCompanyUsers(currentUser), users -> {
             ObservableList<ChatUser> visibleUsers = FXCollections.observableArrayList(users);
             TextField search = new TextField();
-            search.setPromptText("Tìm tên, tài khoản, chức vụ");
+            search.setPromptText("TÃƒÆ’Ã‚Â¬m tÃƒÆ’Ã‚Âªn, tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n, chÃƒÂ¡Ã‚Â»Ã‚Â©c vÃƒÂ¡Ã‚Â»Ã‚Â¥");
             search.getStyleClass().add("dialog-search");
             ListView<ChatUser> list = new ListView<>(visibleUsers);
             list.getStyleClass().add("dialog-list");
-            list.setCellFactory(view -> new UserCell());
+            list.setCellFactory(view -> new SidebarCells.UserCell(this::presenceText));
             search.textProperty().addListener((obs, old, value) -> {
                 String q = Texts.normalize(value);
                 visibleUsers.setAll(users.stream()
@@ -583,19 +744,21 @@ public class ChatApp extends Application {
                     runDb(() -> chatService.openDirectConversation(currentUser, selected.username), id -> {
                         loadConversations();
                         selectConversation(id);
-                    }, ex -> showError("Không mở được chat", ex));
+                    }, ex -> showError("KhÃƒÆ’Ã‚Â´ng mÃƒÂ¡Ã‚Â»Ã…Â¸ Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c chat", ex));
                 }
             });
             VBox content = new VBox(10, search, list);
             VBox.setVgrow(list, Priority.ALWAYS);
-            showSidebarPage("Danh bạ", "Nhân viên trong công ty", content);
-        }, e -> showError("Không tải được danh bạ", e));
+            showSidebarPage("Danh bÃƒÂ¡Ã‚ÂºÃ‚Â¡", "NhÃƒÆ’Ã‚Â¢n viÃƒÆ’Ã‚Âªn trong cÃƒÆ’Ã‚Â´ng ty", content);
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â£i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c danh bÃƒÂ¡Ã‚ÂºÃ‚Â¡", e));
     }
 
     private void showMyTasksPanel() {
+        activeNav = "TASKS";
+        refreshNavActiveStyles();
         runDb(() -> chatService.listTasksForUser(currentUser), tasks -> {
             TextField search = new TextField();
-            search.setPromptText("Tìm task, người thực hiện");
+            search.setPromptText("TÃƒÆ’Ã‚Â¬m task, ngÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âi thÃƒÂ¡Ã‚Â»Ã‚Â±c hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n");
             search.getStyleClass().add("dialog-search");
             VBox box = new VBox(10);
             box.getStyleClass().add("sidebar-page-list");
@@ -610,7 +773,7 @@ public class ChatApp extends Application {
                         .collect(Collectors.toList());
                 box.getChildren().clear();
                 if (filtered.isEmpty()) {
-                    box.getChildren().add(emptyState("Chưa có việc", "Các công việc được giao sẽ hiển thị tại đây."));
+                    box.getChildren().add(emptyState("ChÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³ viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c", "CÃƒÆ’Ã‚Â¡c cÃƒÆ’Ã‚Â´ng viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c giao sÃƒÂ¡Ã‚ÂºÃ‚Â½ hiÃƒÂ¡Ã‚Â»Ã†â€™n thÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ tÃƒÂ¡Ã‚ÂºÃ‚Â¡i Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â¢y."));
                 } else {
                     for (ChatTask task : filtered) box.getChildren().add(taskCard(task));
                 }
@@ -622,11 +785,13 @@ public class ChatApp extends Application {
             scroll.setFitToWidth(true);
             VBox content = new VBox(10, search, scroll);
             VBox.setVgrow(scroll, Priority.ALWAYS);
-            showSidebarPage("Việc của tôi", "Tất cả công việc liên quan", content);
-        }, e -> showError("Không tải được công việc", e));
+            showSidebarPage("ViÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c cÃƒÂ¡Ã‚Â»Ã‚Â§a tÃƒÆ’Ã‚Â´i", "TÃƒÂ¡Ã‚ÂºÃ‚Â¥t cÃƒÂ¡Ã‚ÂºÃ‚Â£ cÃƒÆ’Ã‚Â´ng viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c liÃƒÆ’Ã‚Âªn quan", content);
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â£i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c cÃƒÆ’Ã‚Â´ng viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c", e));
     }
 
     private void showNotificationsPanel() {
+        activeNav = "NOTIFICATIONS";
+        refreshNavActiveStyles();
         runDb(() -> new NotificationSummary(
                 chatService.countOverdueTasks(currentUser),
                 chatService.listMentionsForUser(currentUser).size(),
@@ -634,18 +799,20 @@ public class ChatApp extends Application {
             VBox box = new VBox(10);
             box.getStyleClass().add("sidebar-page-list");
             int unread = conversations.stream().mapToInt(c -> c.unreadCount).sum();
-            box.getChildren().add(settingLine("Tin chưa đọc", String.valueOf(unread)));
-            box.getChildren().add(settingLine("Nhắc đến tôi", String.valueOf(summary.mentions)));
-            box.getChildren().add(settingLine("Task quá hạn", String.valueOf(summary.overdueTasks)));
-            box.getChildren().add(settingLine("Workflow chờ duyệt", String.valueOf(summary.pendingWorkflows)));
+            box.getChildren().add(settingLine("Tin chÃƒâ€ Ã‚Â°a Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Âc", String.valueOf(unread)));
+            box.getChildren().add(settingLine("NhÃƒÂ¡Ã‚ÂºÃ‚Â¯c Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â¿n tÃƒÆ’Ã‚Â´i", String.valueOf(summary.mentions)));
+            box.getChildren().add(settingLine("Task quÃƒÆ’Ã‚Â¡ hÃƒÂ¡Ã‚ÂºÃ‚Â¡n", String.valueOf(summary.overdueTasks)));
+            box.getChildren().add(settingLine("Workflow chÃƒÂ¡Ã‚Â»Ã‚Â duyÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡t", String.valueOf(summary.pendingWorkflows)));
             if (unread == 0 && summary.mentions == 0 && summary.overdueTasks == 0 && summary.pendingWorkflows == 0) {
-                box.getChildren().add(emptyState("Không có thông báo mới", "Các cập nhật quan trọng sẽ xuất hiện tại đây."));
+                box.getChildren().add(emptyState("KhÃƒÆ’Ã‚Â´ng cÃƒÆ’Ã‚Â³ thÃƒÆ’Ã‚Â´ng bÃƒÆ’Ã‚Â¡o mÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºi", "CÃƒÆ’Ã‚Â¡c cÃƒÂ¡Ã‚ÂºÃ‚Â­p nhÃƒÂ¡Ã‚ÂºÃ‚Â­t quan trÃƒÂ¡Ã‚Â»Ã‚Âng sÃƒÂ¡Ã‚ÂºÃ‚Â½ xuÃƒÂ¡Ã‚ÂºÃ‚Â¥t hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n tÃƒÂ¡Ã‚ÂºÃ‚Â¡i Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â¢y."));
             }
-            showSidebarPage("Thông báo", "Tổng hợp cập nhật mới", box);
-        }, e -> showError("Không tải được thông báo", e));
+            showSidebarPage("ThÃƒÆ’Ã‚Â´ng bÃƒÆ’Ã‚Â¡o", "TÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ng hÃƒÂ¡Ã‚Â»Ã‚Â£p cÃƒÂ¡Ã‚ÂºÃ‚Â­p nhÃƒÂ¡Ã‚ÂºÃ‚Â­t mÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºi", box);
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â£i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c thÃƒÆ’Ã‚Â´ng bÃƒÆ’Ã‚Â¡o", e));
     }
 
     private void showCalendarPanel() {
+        activeNav = "CALENDAR";
+        refreshNavActiveStyles();
         runDb(() -> chatService.listTasksForUser(currentUser), tasks -> {
             VBox box = new VBox(10);
             box.getStyleClass().add("sidebar-page-list");
@@ -655,15 +822,15 @@ public class ChatApp extends Application {
                     .filter(t -> !t.deadline.toLocalDate().isAfter(today.plusDays(7)))
                     .collect(Collectors.toList());
             if (due.isEmpty()) {
-                box.getChildren().add(emptyState("Lịch trống", "Không có deadline trong 7 ngày tới."));
+                box.getChildren().add(emptyState("LÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ch trÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœng", "KhÃƒÆ’Ã‚Â´ng cÃƒÆ’Ã‚Â³ deadline trong 7 ngÃƒÆ’Ã‚Â y tÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºi."));
             } else {
                 for (ChatTask task : due) box.getChildren().add(taskCard(task));
             }
             ScrollPane scroll = new ScrollPane(box);
             scroll.getStyleClass().add("task-scroll");
             scroll.setFitToWidth(true);
-            showSidebarPage("Lịch", "Deadline hôm nay và tuần này", scroll);
-        }, e -> showError("Không tải được lịch", e));
+            showSidebarPage("LÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ch", "Deadline hÃƒÆ’Ã‚Â´m nay vÃƒÆ’Ã‚Â  tuÃƒÂ¡Ã‚ÂºÃ‚Â§n nÃƒÆ’Ã‚Â y", scroll);
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â£i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c lÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ch", e));
     }
 
     private void toggleSidebarCollapsed() {
@@ -673,20 +840,24 @@ public class ChatApp extends Application {
     }
 
     private void applySidebarCollapsed() {
-        if (conversationPanel == null || sidebar == null) return;
+        if (conversationPanel == null || sidebar == null || navRail == null) return;
         boolean collapsed = userSettings.sidebarCollapsed;
         conversationPanel.setVisible(!collapsed);
         conversationPanel.setManaged(!collapsed);
-        sidebar.setPrefWidth(collapsed ? 142 : 462);
-        sidebar.setMinWidth(collapsed ? 130 : 430);
-        sidebar.setMaxWidth(collapsed ? 150 : 500);
+        conversationPanel.setMouseTransparent(collapsed);
+        navRail.setPrefWidth(collapsed ? 462 : 142);
+        navRail.setMinWidth(collapsed ? 430 : 130);
+        navRail.setMaxWidth(collapsed ? 500 : 160);
+        sidebar.setPrefWidth(462);
+        sidebar.setMinWidth(430);
+        sidebar.setMaxWidth(500);
     }
 
     private String presenceText() {
         return switch (userSettings.presenceStatus == null ? "ONLINE" : userSettings.presenceStatus) {
-            case "BUSY" -> "Đang bận";
-            case "DO_NOT_DISTURB" -> "Không làm phiền";
-            case "AWAY" -> "Vắng mặt";
+            case "BUSY" -> "Ãƒâ€žÃ‚Âang bÃƒÂ¡Ã‚ÂºÃ‚Â­n";
+            case "DO_NOT_DISTURB" -> "KhÃƒÆ’Ã‚Â´ng lÃƒÆ’Ã‚Â m phiÃƒÂ¡Ã‚Â»Ã‚Ân";
+            case "AWAY" -> "VÃƒÂ¡Ã‚ÂºÃ‚Â¯ng mÃƒÂ¡Ã‚ÂºÃ‚Â·t";
             default -> "Online";
         };
     }
@@ -694,9 +865,9 @@ public class ChatApp extends Application {
     private void showPresenceMenu(Button owner) {
         ContextMenu menu = new ContextMenu();
         addPresenceItem(menu, "ONLINE", "Online");
-        addPresenceItem(menu, "BUSY", "Đang bận");
-        addPresenceItem(menu, "DO_NOT_DISTURB", "Không làm phiền");
-        addPresenceItem(menu, "AWAY", "Vắng mặt");
+        addPresenceItem(menu, "BUSY", "Ãƒâ€žÃ‚Âang bÃƒÂ¡Ã‚ÂºÃ‚Â­n");
+        addPresenceItem(menu, "DO_NOT_DISTURB", "KhÃƒÆ’Ã‚Â´ng lÃƒÆ’Ã‚Â m phiÃƒÂ¡Ã‚Â»Ã‚Ân");
+        addPresenceItem(menu, "AWAY", "VÃƒÂ¡Ã‚ÂºÃ‚Â¯ng mÃƒÂ¡Ã‚ÂºÃ‚Â·t");
         menu.show(owner, javafx.geometry.Side.BOTTOM, 0, 4);
     }
 
@@ -715,37 +886,37 @@ public class ChatApp extends Application {
         pane.getStyleClass().add("chat-pane");
 
         headerAvatar = avatar("?", "header-avatar");
-        headerTitle = new Label("Chọn hội thoại");
+        headerTitle = new Label("ChÃƒÂ¡Ã‚Â»Ã‚Ân hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i");
         headerTitle.getStyleClass().add("chat-title");
-        headerDetail = new Label("Tin nhắn nội bộ công ty");
+        headerDetail = new Label("Tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n nÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i bÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ cÃƒÆ’Ã‚Â´ng ty");
         headerDetail.getStyleClass().add("chat-subtitle");
         VBox titleBlock = new VBox(3, headerTitle, headerDetail);
         HBox.setHgrow(titleBlock, Priority.ALWAYS);
 
-        pinConversationButton = iconButton("pin", "Ghim hội thoại", "header-button");
+        pinConversationButton = iconButton("pin", "Ghim hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i", "header-button");
         pinConversationButton.getStyleClass().add("header-button");
         pinConversationButton.setOnAction(e -> toggleConversationPin());
-        manageGroupButton = new Button("Quản lý nhóm");
+        manageGroupButton = new Button("QuÃƒÂ¡Ã‚ÂºÃ‚Â£n lÃƒÆ’Ã‚Â½ nhÃƒÆ’Ã‚Â³m");
         manageGroupButton.getStyleClass().add("header-button");
         manageGroupButton.setText("");
         manageGroupButton.setGraphic(svgIcon("users", 17));
-        manageGroupButton.setTooltip(new Tooltip("Quản lý nhóm"));
+        manageGroupButton.setTooltip(new Tooltip("QuÃƒÂ¡Ã‚ÂºÃ‚Â£n lÃƒÆ’Ã‚Â½ nhÃƒÆ’Ã‚Â³m"));
         installHoverScale(manageGroupButton, 1.05);
         manageGroupButton.setOnAction(e -> openGroupDialog(currentConversation));
-        taskDrawerButton = iconButton("tasks", "Bảng công việc", "header-button");
+        taskDrawerButton = iconButton("tasks", "BÃƒÂ¡Ã‚ÂºÃ‚Â£ng cÃƒÆ’Ã‚Â´ng viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c", "header-button");
         taskDrawerButton.setOnAction(e -> toggleTaskDrawer());
-        exportConversationButton = iconButton("download", "Xuất lịch sử chat CSV", "header-button");
+        exportConversationButton = iconButton("download", "XuÃƒÂ¡Ã‚ÂºÃ‚Â¥t lÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ch sÃƒÂ¡Ã‚Â»Ã‚Â­ chat CSV", "header-button");
         exportConversationButton.setOnAction(e -> exportCurrentConversationCsv());
 
         HBox headerTop = new HBox(12, headerAvatar, titleBlock, pinConversationButton, manageGroupButton, taskDrawerButton, exportConversationButton);
         headerTop.setAlignment(Pos.CENTER_LEFT);
 
         messageSearch = new TextField();
-        messageSearch.setPromptText("Tìm trong cuộc trò chuyện");
+        messageSearch.setPromptText("TÃƒÆ’Ã‚Â¬m trong cuÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢c trÃƒÆ’Ã‚Â² chuyÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n");
         messageSearch.getStyleClass().add("message-search");
         installFocusScale(messageSearch);
         messageSearch.textProperty().addListener((obs, old, value) -> refreshMessages(true));
-        advancedSearchButton = iconButton("filter", "Tìm kiếm nâng cao", "header-button");
+        advancedSearchButton = iconButton("filter", "TÃƒÆ’Ã‚Â¬m kiÃƒÂ¡Ã‚ÂºÃ‚Â¿m nÃƒÆ’Ã‚Â¢ng cao", "header-button");
         advancedSearchButton.setOnAction(e -> showAdvancedMessageSearchDialog());
         HBox searchBar = new HBox(10, messageSearch, advancedSearchButton);
         searchBar.setAlignment(Pos.CENTER_LEFT);
@@ -762,7 +933,8 @@ public class ChatApp extends Application {
         messageScroll.setFitToWidth(true);
         messageScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         pane.setCenter(messageScroll);
-        taskDrawer = buildTaskDrawer();
+        taskDrawer = new TaskDrawerPanel(this::hideTaskDrawer, this::updateTaskStatus,
+                (name, username) -> avatarNode(name, "task-avatar", username));
         taskDrawer.setVisible(false);
         taskDrawer.setManaged(false);
         pane.setRight(taskDrawer);
@@ -778,7 +950,7 @@ public class ChatApp extends Application {
         attachmentLabel.setManaged(false);
 
         input = new TextArea();
-        input.setPromptText("Nhập tin nhắn, Ctrl+Enter để gửi");
+        input.setPromptText("NhÃƒÂ¡Ã‚ÂºÃ‚Â­p tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n, Ctrl+Enter Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã†â€™ gÃƒÂ¡Ã‚Â»Ã‚Â­i");
         input.getStyleClass().add("composer-input");
         input.setPrefRowCount(2);
         input.setWrapText(true);
@@ -791,22 +963,22 @@ public class ChatApp extends Application {
         input.textProperty().addListener((obs, old, value) -> publishTypingIfNeeded());
         input.addEventHandler(KeyEvent.KEY_RELEASED, e -> updateMentionSuggestions());
 
-        Button plus = composerIconButton("+", "Mở thêm tùy chọn");
+        Button plus = composerIconButton("+", "MÃƒÂ¡Ã‚Â»Ã…Â¸ thÃƒÆ’Ã‚Âªm tÃƒÆ’Ã‚Â¹y chÃƒÂ¡Ã‚Â»Ã‚Ân");
         applyIcon(plus, "plus");
         plus.setOnAction(e -> showPlusMenu(plus));
-        Button clearFiles = composerIconButton("🗑", "Xóa file đang chọn");
+        Button clearFiles = composerIconButton("ÃƒÂ°Ã…Â¸Ã¢â‚¬â€Ã¢â‚¬Ëœ", "XÃƒÆ’Ã‚Â³a file Ãƒâ€žÃ¢â‚¬Ëœang chÃƒÂ¡Ã‚Â»Ã‚Ân");
         applyIcon(clearFiles, "trash");
         clearFiles.setOnAction(e -> {
             selectedFiles.clear();
             updateAttachmentLabel();
         });
-        Button icons = composerIconButton("😊", "Chèn icon cảm xúc");
+        Button icons = composerIconButton("ÃƒÂ°Ã…Â¸Ã‹Å“Ã…Â ", "ChÃƒÆ’Ã‚Â¨n icon cÃƒÂ¡Ã‚ÂºÃ‚Â£m xÃƒÆ’Ã‚Âºc");
         applyIcon(icons, "smile");
         icons.setOnAction(e -> showEmojiMenu(icons));
-        voiceButton = composerIconButton("🎙", "Ghi âm voice message");
+        voiceButton = composerIconButton("ÃƒÂ°Ã…Â¸Ã…Â½Ã¢â€žÂ¢", "Ghi ÃƒÆ’Ã‚Â¢m voice message");
         applyIcon(voiceButton, "mic");
         voiceButton.setOnAction(e -> toggleVoiceRecording());
-        Button send = composerIconButton("➤", "Gửi tin nhắn");
+        Button send = composerIconButton("ÃƒÂ¢Ã…Â¾Ã‚Â¤", "GÃƒÂ¡Ã‚Â»Ã‚Â­i tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n");
         applyIcon(send, "send");
         send.getStyleClass().add("send-icon-button");
         send.setOnAction(e -> sendCurrentMessage());
@@ -823,52 +995,6 @@ public class ChatApp extends Application {
         return pane;
     }
 
-    private VBox buildTaskDrawer() {
-        Label title = new Label("Bảng tiến độ công việc");
-        title.getStyleClass().add("task-drawer-title");
-        Button close = iconButton("menu", "Đóng bảng công việc", "task-close-button");
-        close.setOnAction(e -> toggleTaskDrawer());
-        HBox header = new HBox(10, title, close);
-        header.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(title, Priority.ALWAYS);
-
-        taskProgress = new ProgressBar(0);
-        taskProgress.getStyleClass().add("task-progress");
-        taskProgress.setMaxWidth(Double.MAX_VALUE);
-        taskProgressLabel = new Label("0% hoàn thành");
-        taskProgressLabel.getStyleClass().add("task-progress-label");
-
-        taskTotalLabel = taskMetric("Tổng", "0");
-        taskDoingLabel = taskMetric("Đang làm", "0");
-        taskOverdueLabel = taskMetric("Quá hạn", "0");
-        HBox metrics = new HBox(10, taskTotalLabel, taskDoingLabel, taskOverdueLabel);
-        metrics.getStyleClass().add("task-metrics");
-
-        taskListBox = new VBox(12);
-        taskListBox.getStyleClass().add("task-list");
-        ScrollPane scroll = new ScrollPane(taskListBox);
-        scroll.getStyleClass().add("task-scroll");
-        scroll.setFitToWidth(true);
-        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        VBox.setVgrow(scroll, Priority.ALWAYS);
-
-        VBox drawer = new VBox(14, header, taskProgress, taskProgressLabel, metrics, scroll);
-        drawer.getStyleClass().add("task-drawer");
-        drawer.setPrefWidth(360);
-        drawer.setMinWidth(330);
-        drawer.setMaxWidth(390);
-        return drawer;
-    }
-
-    private Label taskMetric(String key, String value) {
-        Label label = new Label(key + "\n" + value);
-        label.getStyleClass().add("task-metric");
-        label.setAlignment(Pos.CENTER);
-        label.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(label, Priority.ALWAYS);
-        return label;
-    }
-
     private void toggleTaskDrawer() {
         if (taskDrawer == null) return;
         boolean show = !taskDrawer.isVisible();
@@ -879,8 +1005,14 @@ public class ChatApp extends Application {
         }
     }
 
+    private void hideTaskDrawer() {
+        if (taskDrawer == null) return;
+        taskDrawer.setVisible(false);
+        taskDrawer.setManaged(false);
+    }
+
     private void loadTasksAsync() {
-        if (currentConversation == null || taskListBox == null) {
+        if (currentConversation == null || taskDrawer == null) {
             currentTasks = new ArrayList<>();
             renderTasks();
             return;
@@ -894,79 +1026,28 @@ public class ChatApp extends Application {
     }
 
     private void renderTasks() {
-        if (taskListBox == null) return;
-        List<ChatTask> tasks = currentTasks == null ? List.of() : currentTasks;
-        long done = tasks.stream().filter(t -> "DONE".equals(t.status)).count();
-        long doing = tasks.stream().filter(t -> "IN_PROGRESS".equals(t.status) || "REVIEW".equals(t.status)).count();
-        long overdue = tasks.stream().filter(this::isTaskOverdue).count();
-        double progress = tasks.isEmpty() ? 0 : (double) done / tasks.size();
-        if (taskProgress != null) taskProgress.setProgress(progress);
-        if (taskProgressLabel != null) taskProgressLabel.setText(Math.round(progress * 100) + "% hoàn thành");
-        if (taskTotalLabel != null) taskTotalLabel.setText("Tổng\n" + tasks.size());
-        if (taskDoingLabel != null) taskDoingLabel.setText("Đang làm\n" + doing);
-        if (taskOverdueLabel != null) taskOverdueLabel.setText("Quá hạn\n" + overdue);
-
-        taskListBox.getChildren().clear();
-        if (tasks.isEmpty()) {
-            taskListBox.getChildren().add(emptyState("Chưa có công việc", "Giao việc từ menu tin nhắn để theo dõi tại đây."));
-            return;
-        }
-        for (String status : List.of("TODO", "IN_PROGRESS", "REVIEW", "DONE")) {
-            List<ChatTask> group = tasks.stream().filter(t -> status.equals(t.status)).collect(Collectors.toList());
-            taskListBox.getChildren().add(taskGroup(status, group));
-        }
-    }
-
-    private Node taskGroup(String status, List<ChatTask> tasks) {
-        Label title = new Label(taskStatusText(status) + " (" + tasks.size() + ")");
-        title.getStyleClass().add("task-group-title");
-        VBox cards = new VBox(8);
-        for (ChatTask task : tasks) {
-            cards.getChildren().add(taskCard(task));
-        }
-        VBox group = new VBox(8, title, cards);
-        group.getStyleClass().add("task-group");
-        return group;
+        if (taskDrawer == null) return;
+        taskDrawer.render(currentTasks);
     }
 
     private Node taskCard(ChatTask task) {
         Label title = new Label(task.title);
         title.getStyleClass().add("task-card-title");
         title.setWrapText(true);
-
         Node avatar = avatarNode(task.assigneeName, "task-avatar", task.assigneeUsername);
         Label assignee = new Label(task.assigneeName == null || task.assigneeName.isBlank() ? task.assigneeUsername : task.assigneeName);
         assignee.getStyleClass().add("task-assignee");
         HBox assigneeRow = new HBox(8, avatar, assignee);
         assigneeRow.setAlignment(Pos.CENTER_LEFT);
-
         Label priority = new Label(task.priority);
         priority.getStyleClass().addAll("task-priority", "task-priority-" + task.priority.toLowerCase());
-        Label kpi = new Label("+" + task.kpiPoints + " KPI");
-        kpi.getStyleClass().add("task-kpi");
-        Button menu = composerIconButton("...", "Đổi trạng thái");
-        applyIcon(menu, "menu");
-        menu.getStyleClass().add("task-card-menu");
-        menu.setOnAction(e -> showTaskStatusMenu(task, menu));
-        HBox badges = new HBox(8, priority, kpi, menu);
-        badges.setAlignment(Pos.CENTER_LEFT);
-
+        Label status = new Label(taskStatusText(task.status));
+        status.getStyleClass().add("task-kpi");
         Label deadline = new Label(taskDeadlineText(task));
         deadline.getStyleClass().add(isTaskOverdue(task) ? "task-deadline-danger" : "task-deadline");
-        VBox card = new VBox(9, title, assigneeRow, badges, deadline);
+        VBox card = new VBox(9, title, assigneeRow, new HBox(8, priority, status), deadline);
         card.getStyleClass().add("task-card");
         return card;
-    }
-
-    private void showTaskStatusMenu(ChatTask task, Button owner) {
-        ContextMenu menu = new ContextMenu();
-        for (String status : List.of("TODO", "IN_PROGRESS", "REVIEW", "DONE")) {
-            MenuItem item = new MenuItem(taskStatusText(status));
-            item.setDisable(status.equals(task.status));
-            item.setOnAction(e -> updateTaskStatus(task, status));
-            menu.getItems().add(item);
-        }
-        menu.show(owner, javafx.geometry.Side.BOTTOM, 0, 4);
     }
 
     private void updateTaskStatus(ChatTask task, String status) {
@@ -974,13 +1055,13 @@ public class ChatApp extends Application {
         runDb(() -> chatService.updateTaskStatus(currentUser, task.id, status), updated -> {
             loadTasksAsync();
             if ("DONE".equals(status)) {
-                webhookService.notifyIntegrations("Task hoàn thành", task.title + " - " + task.assigneeUsername + " (+" + task.kpiPoints + " KPI)",
+                webhookService.notifyIntegrations("Task hoÃƒÆ’Ã‚Â n thÃƒÆ’Ã‚Â nh", task.title + " - " + task.assigneeUsername + " (+" + task.kpiPoints + " KPI)",
                         userSettings.slackWebhookUrl, userSettings.teamsWebhookUrl);
                 refreshMessages(true);
                 publishRealtime("MESSAGE_CREATED", conversationId);
             }
             publishRealtime("TASK_UPDATED", conversationId);
-        }, e -> showError("Không cập nhật được công việc", e));
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng cÃƒÂ¡Ã‚ÂºÃ‚Â­p nhÃƒÂ¡Ã‚ÂºÃ‚Â­t Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c cÃƒÆ’Ã‚Â´ng viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c", e));
     }
 
     private boolean isTaskOverdue(ChatTask task) {
@@ -988,17 +1069,17 @@ public class ChatApp extends Application {
     }
 
     private String taskDeadlineText(ChatTask task) {
-        if (task.deadline == null) return "Không có hạn chót";
-        String prefix = isTaskOverdue(task) ? "Quá hạn: " : "Hạn: ";
+        if (task.deadline == null) return "KhÃƒÆ’Ã‚Â´ng cÃƒÆ’Ã‚Â³ hÃƒÂ¡Ã‚ÂºÃ‚Â¡n chÃƒÆ’Ã‚Â³t";
+        String prefix = isTaskOverdue(task) ? "QuÃƒÆ’Ã‚Â¡ hÃƒÂ¡Ã‚ÂºÃ‚Â¡n: " : "HÃƒÂ¡Ã‚ÂºÃ‚Â¡n: ";
         return prefix + task.deadline.format(TASK_TIME);
     }
 
     private static String taskStatusText(String status) {
         return switch (status) {
-            case "IN_PROGRESS" -> "Đang làm";
-            case "REVIEW" -> "Chờ duyệt";
-            case "DONE" -> "Hoàn thành";
-            default -> "Cần làm";
+            case "IN_PROGRESS" -> "Ãƒâ€žÃ‚Âang lÃƒÆ’Ã‚Â m";
+            case "REVIEW" -> "ChÃƒÂ¡Ã‚Â»Ã‚Â duyÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡t";
+            case "DONE" -> "HoÃƒÆ’Ã‚Â n thÃƒÆ’Ã‚Â nh";
+            default -> "CÃƒÂ¡Ã‚ÂºÃ‚Â§n lÃƒÆ’Ã‚Â m";
         };
     }
 
@@ -1040,7 +1121,7 @@ public class ChatApp extends Application {
                 showEmptyConversation();
             }
         }, e -> {
-            showError("Lỗi tải hội thoại", e);
+            showError("LÃƒÂ¡Ã‚Â»Ã¢â‚¬â€i tÃƒÂ¡Ã‚ÂºÃ‚Â£i hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i", e);
         });
     }
 
@@ -1109,9 +1190,9 @@ public class ChatApp extends Application {
             updateDirectPresenceHeader(currentConversation);
             manageGroupButton.setVisible(currentUser.canManageGroups() && "GROUP".equals(currentConversation.type));
             manageGroupButton.setManaged(manageGroupButton.isVisible());
-            pinConversationButton.setText(currentConversation.pinned ? "Bỏ ghim" : "Ghim");
+            pinConversationButton.setText(currentConversation.pinned ? "BÃƒÂ¡Ã‚Â»Ã‚Â ghim" : "Ghim");
             pinConversationButton.setText("");
-            pinConversationButton.setTooltip(new Tooltip(currentConversation.pinned ? "Bỏ ghim hội thoại" : "Ghim hội thoại"));
+            pinConversationButton.setTooltip(new Tooltip(currentConversation.pinned ? "BÃƒÂ¡Ã‚Â»Ã‚Â ghim hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i" : "Ghim hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i"));
             pinConversationButton.setDisable(false);
             String search = messageSearch == null ? "" : Texts.safe(messageSearch.getText());
             long conversationId = currentConversation.id;
@@ -1129,7 +1210,7 @@ public class ChatApp extends Application {
                     animatedMessageIds.clear();
                 }
                 if (currentMessages.isEmpty()) {
-                    messageBox.getChildren().setAll(emptyState("Chưa có tin nhắn", "Hãy gửi lời chào để bắt đầu cuộc trò chuyện."));
+                    messageBox.getChildren().setAll(emptyState("ChÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³ tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n", "HÃƒÆ’Ã‚Â£y gÃƒÂ¡Ã‚Â»Ã‚Â­i lÃƒÂ¡Ã‚Â»Ã‚Âi chÃƒÆ’Ã‚Â o Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã†â€™ bÃƒÂ¡Ã‚ÂºÃ‚Â¯t Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u cuÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢c trÃƒÆ’Ã‚Â² chuyÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n."));
                 } else {
                     messageBox.getChildren().setAll(currentMessages.stream().map(this::messageNode).collect(Collectors.toList()));
                 }
@@ -1142,9 +1223,9 @@ public class ChatApp extends Application {
                     Platform.runLater(() -> messageScroll.setVvalue(1.0));
                 }
                 forceScrollToBottom = false;
-            }, e -> showError("Lỗi tải tin nhắn", e));
+            }, e -> showError("LÃƒÂ¡Ã‚Â»Ã¢â‚¬â€i tÃƒÂ¡Ã‚ÂºÃ‚Â£i tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n", e));
         } catch (Exception e) {
-            showError("Lỗi tải tin nhắn", e);
+            showError("LÃƒÂ¡Ã‚Â»Ã¢â‚¬â€i tÃƒÂ¡Ã‚ÂºÃ‚Â£i tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n", e);
         }
     }
 
@@ -1155,12 +1236,12 @@ public class ChatApp extends Application {
     private void showEmptyConversation() {
         if (headerAvatar != null) {
             headerAvatar.setText("C");
-            headerTitle.setText("Chọn hội thoại");
-            headerDetail.setText("Tin nhắn, nhóm và file nội bộ sẽ hiển thị tại đây");
+            headerTitle.setText("ChÃƒÂ¡Ã‚Â»Ã‚Ân hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i");
+            headerDetail.setText("Tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n, nhÃƒÆ’Ã‚Â³m vÃƒÆ’Ã‚Â  file nÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i bÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ sÃƒÂ¡Ã‚ÂºÃ‚Â½ hiÃƒÂ¡Ã‚Â»Ã†â€™n thÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ tÃƒÂ¡Ã‚ÂºÃ‚Â¡i Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â¢y");
             pinConversationButton.setDisable(true);
             manageGroupButton.setVisible(false);
             manageGroupButton.setManaged(false);
-            messageBox.getChildren().setAll(emptyState("Chưa chọn hội thoại", "Chọn một cuộc trò chuyện bên trái hoặc tạo chat mới."));
+            messageBox.getChildren().setAll(emptyState("ChÃƒâ€ Ã‚Â°a chÃƒÂ¡Ã‚Â»Ã‚Ân hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i", "ChÃƒÂ¡Ã‚Â»Ã‚Ân mÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢t cuÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢c trÃƒÆ’Ã‚Â² chuyÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n bÃƒÆ’Ã‚Âªn trÃƒÆ’Ã‚Â¡i hoÃƒÂ¡Ã‚ÂºÃ‚Â·c tÃƒÂ¡Ã‚ÂºÃ‚Â¡o chat mÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºi."));
             currentTasks = new ArrayList<>();
             renderTasks();
         }
@@ -1172,28 +1253,28 @@ public class ChatApp extends Application {
         bubble.getStyleClass().add(mine ? "bubble-mine" : "bubble-other");
         bubble.setMaxWidth(640);
 
-        Label name = new Label(mine ? "Bạn" : msg.senderName);
+        Label name = new Label(mine ? "BÃƒÂ¡Ã‚ÂºÃ‚Â¡n" : msg.senderName);
         name.getStyleClass().add("message-sender");
-        Label time = new Label(msg.createdAt.format(MESSAGE_TIME) + (msg.edited ? " - đã sửa" : ""));
+        Label time = new Label(msg.createdAt.format(MESSAGE_TIME) + (msg.edited ? " - Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ sÃƒÂ¡Ã‚Â»Ã‚Â­a" : ""));
         time.getStyleClass().add("message-time");
         HBox meta = new HBox(8, name, time);
         meta.setAlignment(Pos.CENTER_LEFT);
         bubble.getChildren().add(meta);
 
         if (msg.pinned) {
-            Label pinned = new Label("Tin đã ghim");
+            Label pinned = new Label("Tin Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ ghim");
             pinned.getStyleClass().add("pin-chip");
             bubble.getChildren().add(pinned);
         }
 
         if (msg.replyToId != null) {
-            Label reply = new Label("Trả lời: " + Texts.shortText(msg.replyPreview, 90));
+            Label reply = new Label("TrÃƒÂ¡Ã‚ÂºÃ‚Â£ lÃƒÂ¡Ã‚Â»Ã‚Âi: " + Texts.shortText(msg.replyPreview, 90));
             reply.getStyleClass().add("reply-preview");
             bubble.getChildren().add(reply);
         }
 
         if (msg.recalled) {
-            Label recalled = new Label("Tin nhắn đã được thu hồi");
+            Label recalled = new Label("Tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c thu hÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“i");
             recalled.getStyleClass().add("recalled-text");
             bubble.getChildren().add(recalled);
         } else {
@@ -1224,14 +1305,14 @@ public class ChatApp extends Application {
         }
 
         if (mine && msg.seenCount > 0) {
-            Label seen = new Label("Đã xem: " + msg.seenCount);
+            Label seen = new Label("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ xem: " + msg.seenCount);
             seen.getStyleClass().add("seen-label");
             bubble.getChildren().add(seen);
         }
 
         ContextMenu menu = messageMenu(msg, mine);
         bubble.setOnContextMenuRequested(e -> menu.show(bubble, e.getScreenX(), e.getScreenY()));
-        Button more = composerIconButton("⋯", "Tùy chọn tin nhắn");
+        Button more = composerIconButton("ÃƒÂ¢Ã¢â‚¬Â¹Ã‚Â¯", "TÃƒÆ’Ã‚Â¹y chÃƒÂ¡Ã‚Â»Ã‚Ân tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n");
         applyIcon(more, "menu");
         more.getStyleClass().add("message-more-button");
         more.setOnAction(e -> menu.show(more, javafx.geometry.Side.BOTTOM, 0, 4));
@@ -1253,39 +1334,39 @@ public class ChatApp extends Application {
 
     private ContextMenu messageMenu(ChatMessage msg, boolean mine) {
         ContextMenu menu = new ContextMenu();
-        javafx.scene.control.MenuItem reply = new javafx.scene.control.MenuItem("Trả lời");
+        javafx.scene.control.MenuItem reply = new javafx.scene.control.MenuItem("TrÃƒÂ¡Ã‚ÂºÃ‚Â£ lÃƒÂ¡Ã‚Â»Ã‚Âi");
         reply.setOnAction(e -> {
             replyToId = msg.id;
-            replyLabel.setText("Đang trả lời: " + Texts.shortText(msg.recalled ? "Tin đã thu hồi" : msg.body, 80));
+            replyLabel.setText("Ãƒâ€žÃ‚Âang trÃƒÂ¡Ã‚ÂºÃ‚Â£ lÃƒÂ¡Ã‚Â»Ã‚Âi: " + Texts.shortText(msg.recalled ? "Tin Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ thu hÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“i" : msg.body, 80));
             replyLabel.setVisible(true);
             replyLabel.setManaged(true);
             input.requestFocus();
         });
-        javafx.scene.control.MenuItem edit = new javafx.scene.control.MenuItem("Sửa tin");
+        javafx.scene.control.MenuItem edit = new javafx.scene.control.MenuItem("SÃƒÂ¡Ã‚Â»Ã‚Â­a tin");
         edit.setDisable(!mine || msg.recalled);
         edit.setOnAction(e -> editMessage(msg));
-        javafx.scene.control.MenuItem recall = new javafx.scene.control.MenuItem("Thu hồi");
+        javafx.scene.control.MenuItem recall = new javafx.scene.control.MenuItem("Thu hÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“i");
         recall.setDisable(!mine || msg.recalled);
         recall.setOnAction(e -> recallMessage(msg));
-        javafx.scene.control.MenuItem pin = new javafx.scene.control.MenuItem(msg.pinned ? "Bỏ ghim tin" : "Ghim tin");
+        javafx.scene.control.MenuItem pin = new javafx.scene.control.MenuItem(msg.pinned ? "BÃƒÂ¡Ã‚Â»Ã‚Â ghim tin" : "Ghim tin");
         pin.setOnAction(e -> pinMessage(msg));
-        javafx.scene.control.MenuItem forward = new javafx.scene.control.MenuItem("Chuyển tiếp");
+        javafx.scene.control.MenuItem forward = new javafx.scene.control.MenuItem("ChuyÃƒÂ¡Ã‚Â»Ã†â€™n tiÃƒÂ¡Ã‚ÂºÃ‚Â¿p");
         forward.setDisable(msg.recalled);
         forward.setOnAction(e -> forwardMessage(msg));
-        Menu react = new Menu("Cảm xúc");
-        for (String emoji : List.of("👍", "❤️", "😂", "😮", "😢", "✅")) {
+        Menu react = new Menu("CÃƒÂ¡Ã‚ÂºÃ‚Â£m xÃƒÆ’Ã‚Âºc");
+        for (String emoji : List.of("ÃƒÂ°Ã…Â¸Ã¢â‚¬ËœÃ‚Â", "ÃƒÂ¢Ã‚ÂÃ‚Â¤ÃƒÂ¯Ã‚Â¸Ã‚Â", "ÃƒÂ°Ã…Â¸Ã‹Å“Ã¢â‚¬Å¡", "ÃƒÂ°Ã…Â¸Ã‹Å“Ã‚Â®", "ÃƒÂ°Ã…Â¸Ã‹Å“Ã‚Â¢", "ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦")) {
             MenuItem item = new MenuItem(emoji);
             item.setOnAction(e -> reactToMessage(msg, emoji));
             react.getItems().add(item);
         }
-        MenuItem removeReaction = new MenuItem("Bỏ cảm xúc");
+        MenuItem removeReaction = new MenuItem("BÃƒÂ¡Ã‚Â»Ã‚Â cÃƒÂ¡Ã‚ÂºÃ‚Â£m xÃƒÆ’Ã‚Âºc");
         removeReaction.setOnAction(e -> removeReaction(msg));
         react.getItems().add(new SeparatorMenuItem());
         react.getItems().add(removeReaction);
-        MenuItem reactionDetails = new MenuItem("Xem ai đã thả cảm xúc");
+        MenuItem reactionDetails = new MenuItem("Xem ai Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ thÃƒÂ¡Ã‚ÂºÃ‚Â£ cÃƒÂ¡Ã‚ÂºÃ‚Â£m xÃƒÆ’Ã‚Âºc");
         reactionDetails.setOnAction(e -> showReactionDetails(msg));
-        javafx.scene.control.MenuItem task = new javafx.scene.control.MenuItem("Chuyển thành công việc (Giao KPI Task)");
-        task.setText("Giao thành công việc (KPI Task)");
+        javafx.scene.control.MenuItem task = new javafx.scene.control.MenuItem("ChuyÃƒÂ¡Ã‚Â»Ã†â€™n thÃƒÆ’Ã‚Â nh cÃƒÆ’Ã‚Â´ng viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c (Giao KPI Task)");
+        task.setText("Giao thÃƒÆ’Ã‚Â nh cÃƒÆ’Ã‚Â´ng viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c (KPI Task)");
         task.setDisable(msg.recalled);
         task.setOnAction(e -> createChatTaskFromMessage(msg));
         menu.getItems().addAll(reply, edit, recall, pin, forward, react, reactionDetails, new SeparatorMenuItem(), task);
@@ -1295,13 +1376,13 @@ public class ChatApp extends Application {
     private void showReactionDetails(ChatMessage msg) {
         runDb(() -> chatService.listReactionDetails(currentUser, msg.id), details -> {
             Dialog<Void> dialog = new Dialog<>();
-            dialog.setTitle("Cảm xúc tin nhắn");
+            dialog.setTitle("CÃƒÂ¡Ã‚ÂºÃ‚Â£m xÃƒÆ’Ã‚Âºc tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n");
             styleDialog(dialog);
             dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
             VBox box = new VBox(10);
             box.getStyleClass().add("settings-content");
             if (details.isEmpty()) {
-                box.getChildren().add(emptyState("Chưa có cảm xúc", "Khi có người thả cảm xúc, danh sách sẽ hiển thị tại đây."));
+                box.getChildren().add(emptyState("ChÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³ cÃƒÂ¡Ã‚ÂºÃ‚Â£m xÃƒÆ’Ã‚Âºc", "Khi cÃƒÆ’Ã‚Â³ ngÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âi thÃƒÂ¡Ã‚ÂºÃ‚Â£ cÃƒÂ¡Ã‚ÂºÃ‚Â£m xÃƒÆ’Ã‚Âºc, danh sÃƒÆ’Ã‚Â¡ch sÃƒÂ¡Ã‚ÂºÃ‚Â½ hiÃƒÂ¡Ã‚Â»Ã†â€™n thÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ tÃƒÂ¡Ã‚ÂºÃ‚Â¡i Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â¢y."));
             } else {
                 for (ReactionDetail detail : details) {
                     box.getChildren().add(settingLine(detail.emoji + " " + detail.displayName, "@" + detail.username));
@@ -1313,7 +1394,7 @@ public class ChatApp extends Application {
             scroll.getStyleClass().add("settings-scroll");
             dialog.getDialogPane().setContent(scroll);
             dialog.showAndWait();
-        }, e -> showError("Không tải được danh sách cảm xúc", e));
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â£i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c danh sÃƒÆ’Ã‚Â¡ch cÃƒÂ¡Ã‚ÂºÃ‚Â£m xÃƒÆ’Ã‚Âºc", e));
     }
 
     private void reactToMessage(ChatMessage msg, String emoji) {
@@ -1324,7 +1405,7 @@ public class ChatApp extends Application {
         }, ok -> {
             refreshMessages(true);
             publishRealtime("MESSAGE_UPDATED", msg.conversationId);
-        }, e -> showError("Không thêm được cảm xúc", e));
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng thÃƒÆ’Ã‚Âªm Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c cÃƒÂ¡Ã‚ÂºÃ‚Â£m xÃƒÆ’Ã‚Âºc", e));
     }
 
     private void removeReaction(ChatMessage msg) {
@@ -1335,27 +1416,27 @@ public class ChatApp extends Application {
         }, ok -> {
             refreshMessages(true);
             publishRealtime("MESSAGE_UPDATED", msg.conversationId);
-        }, e -> showError("Không bỏ được cảm xúc", e));
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng bÃƒÂ¡Ã‚Â»Ã‚Â Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c cÃƒÂ¡Ã‚ÂºÃ‚Â£m xÃƒÆ’Ã‚Âºc", e));
     }
 
     private void createChatTaskFromMessage(ChatMessage msg) {
         long conversationId = msg.conversationId;
         runDb(() -> chatService.listMemberUsernames(conversationId), members -> {
             if (members.isEmpty()) {
-                showInfo("Chưa có thành viên để giao việc.");
+                showInfo("ChÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³ thÃƒÆ’Ã‚Â nh viÃƒÆ’Ã‚Âªn Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã†â€™ giao viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c.");
                 return;
             }
             Dialog<TaskDraft> dialog = new Dialog<>();
-            dialog.setTitle("Giao thành công việc (KPI Task)");
+            dialog.setTitle("Giao thÃƒÆ’Ã‚Â nh cÃƒÆ’Ã‚Â´ng viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c (KPI Task)");
             styleDialog(dialog);
-            ButtonType save = new ButtonType("Lưu task", ButtonBar.ButtonData.OK_DONE);
+            ButtonType save = new ButtonType("LÃƒâ€ Ã‚Â°u task", ButtonBar.ButtonData.OK_DONE);
             dialog.getDialogPane().getButtonTypes().addAll(save, ButtonType.CANCEL);
 
             String body = Texts.safe(msg.body);
-            String defaultTitle = body.isBlank() ? "Công việc từ file/tin nhắn" : Texts.shortText(body, 70);
+            String defaultTitle = body.isBlank() ? "CÃƒÆ’Ã‚Â´ng viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c tÃƒÂ¡Ã‚Â»Ã‚Â« file/tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n" : Texts.shortText(body, 70);
             TextField title = new TextField(defaultTitle);
             title.getStyleClass().add("dialog-search");
-            TextArea description = new TextArea(body.isBlank() ? "Công việc từ file/tin nhắn" : body);
+            TextArea description = new TextArea(body.isBlank() ? "CÃƒÆ’Ã‚Â´ng viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c tÃƒÂ¡Ã‚Â»Ã‚Â« file/tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n" : body);
             description.getStyleClass().add("dialog-text-area");
             description.setWrapText(true);
             ComboBox<String> assignee = new ComboBox<>(FXCollections.observableArrayList(members));
@@ -1369,12 +1450,12 @@ public class ChatApp extends Application {
             kpi.getStyleClass().add("dialog-search");
 
             VBox content = new VBox(10,
-                    label("Tên công việc", "dialog-label"), title,
-                    label("Người thực hiện", "dialog-label"), assignee,
-                    label("Mô tả công việc", "dialog-label"), description,
-                    label("Độ ưu tiên", "dialog-label"), priority,
+                    label("TÃƒÆ’Ã‚Âªn cÃƒÆ’Ã‚Â´ng viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c", "dialog-label"), title,
+                    label("NgÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âi thÃƒÂ¡Ã‚Â»Ã‚Â±c hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n", "dialog-label"), assignee,
+                    label("MÃƒÆ’Ã‚Â´ tÃƒÂ¡Ã‚ÂºÃ‚Â£ cÃƒÆ’Ã‚Â´ng viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c", "dialog-label"), description,
+                    label("Ãƒâ€žÃ‚ÂÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ Ãƒâ€ Ã‚Â°u tiÃƒÆ’Ã‚Âªn", "dialog-label"), priority,
                     label("Deadline", "dialog-label"), deadline,
-                    label("Điểm KPI", "dialog-label"), kpi);
+                    label("Ãƒâ€žÃ‚ÂiÃƒÂ¡Ã‚Â»Ã†â€™m KPI", "dialog-label"), kpi);
             content.getStyleClass().add("dialog-content");
             dialog.getDialogPane().setContent(content);
             dialog.setResultConverter(btn -> {
@@ -1398,10 +1479,10 @@ public class ChatApp extends Application {
                     draft.kpiPoints), taskId -> {
                 auditLogService.log(currentUser.username, "TASK_CREATED", "CHAT_TASK", taskId, "conversation=" + conversationId);
                 loadTasksAsync();
-                showInfo("Đã tạo KPI Task.");
+                showInfo("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ tÃƒÂ¡Ã‚ÂºÃ‚Â¡o KPI Task.");
                 publishRealtime("TASK_UPDATED", conversationId);
-            }, e -> showError("Không tạo được KPI Task", e)));
-        }, e -> showError("Không tải được danh sách thành viên", e));
+            }, e -> showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â¡o Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c KPI Task", e)));
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â£i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c danh sÃƒÆ’Ã‚Â¡ch thÃƒÆ’Ã‚Â nh viÃƒÆ’Ã‚Âªn", e));
     }
 
     private record TaskDraft(String title, String description, String assignee, String priority, LocalDate deadline, int kpiPoints) {
@@ -1410,13 +1491,13 @@ public class ChatApp extends Application {
     private void createTaskFromMessage(ChatMessage msg) {
         runDb(() -> chatService.listTaskTargets(currentUser), targets -> {
             if (targets.isEmpty()) {
-                showInfo("Chưa có nhân viên APPROVED để giao việc.");
+                showInfo("ChÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³ nhÃƒÆ’Ã‚Â¢n viÃƒÆ’Ã‚Âªn APPROVED Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã†â€™ giao viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c.");
                 return;
             }
             Dialog<TaskTarget> dialog = new Dialog<>();
-            dialog.setTitle("Giao KPI Task từ tin nhắn");
+            dialog.setTitle("Giao KPI Task tÃƒÂ¡Ã‚Â»Ã‚Â« tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n");
             styleDialog(dialog);
-            ButtonType save = new ButtonType("Lưu task", ButtonBar.ButtonData.OK_DONE);
+            ButtonType save = new ButtonType("LÃƒâ€ Ã‚Â°u task", ButtonBar.ButtonData.OK_DONE);
             dialog.getDialogPane().getButtonTypes().addAll(save, ButtonType.CANCEL);
             ComboBox<TaskTarget> employee = new ComboBox<>(FXCollections.observableArrayList(targets));
             employee.getStyleClass().add("dialog-search");
@@ -1424,13 +1505,13 @@ public class ChatApp extends Application {
                     .filter(t -> t.username != null && t.username.equals(msg.senderUsername))
                     .findFirst()
                     .ifPresent(employee::setValue);
-            TextArea description = new TextArea(Texts.safe(msg.body).isBlank() ? "Công việc từ file/tin nhắn" : msg.body);
+            TextArea description = new TextArea(Texts.safe(msg.body).isBlank() ? "CÃƒÆ’Ã‚Â´ng viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c tÃƒÂ¡Ã‚Â»Ã‚Â« file/tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n" : msg.body);
             description.getStyleClass().add("dialog-text-area");
             description.setWrapText(true);
             DatePicker deadline = new DatePicker(LocalDate.now().plusDays(1));
             VBox content = new VBox(10,
-                    label("Người thực hiện", "dialog-label"), employee,
-                    label("Mô tả công việc", "dialog-label"), description,
+                    label("NgÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âi thÃƒÂ¡Ã‚Â»Ã‚Â±c hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n", "dialog-label"), employee,
+                    label("MÃƒÆ’Ã‚Â´ tÃƒÂ¡Ã‚ÂºÃ‚Â£ cÃƒÆ’Ã‚Â´ng viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c", "dialog-label"), description,
                     label("Deadline", "dialog-label"), deadline);
             content.getStyleClass().add("dialog-content");
             dialog.getDialogPane().setContent(content);
@@ -1441,10 +1522,10 @@ public class ChatApp extends Application {
                     target.employeeId,
                     description.getText(),
                     deadline.getValue()), taskId -> {
-                showInfo("Đã tạo KPI Task.");
+                showInfo("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ tÃƒÂ¡Ã‚ÂºÃ‚Â¡o KPI Task.");
                 publishRealtime("TASK_UPDATED", msg.conversationId);
-            }, e -> showError("Không tạo được KPI Task", e)));
-        }, e -> showError("Không tải được danh sách nhân viên", e));
+            }, e -> showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â¡o Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c KPI Task", e)));
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â£i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c danh sÃƒÆ’Ã‚Â¡ch nhÃƒÆ’Ã‚Â¢n viÃƒÆ’Ã‚Âªn", e));
     }
 
     private void forwardMessage(ChatMessage msg) {
@@ -1452,32 +1533,32 @@ public class ChatApp extends Application {
                 .filter(c -> c.id != msg.conversationId)
                 .collect(Collectors.toList());
         if (targets.isEmpty()) {
-            showInfo("Chưa có hội thoại khác để chuyển tiếp.");
+            showInfo("ChÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³ hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i khÃƒÆ’Ã‚Â¡c Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã†â€™ chuyÃƒÂ¡Ã‚Â»Ã†â€™n tiÃƒÂ¡Ã‚ÂºÃ‚Â¿p.");
             return;
         }
         Dialog<Conversation> dialog = new Dialog<>();
-        dialog.setTitle("Chuyển tiếp tin nhắn");
+        dialog.setTitle("ChuyÃƒÂ¡Ã‚Â»Ã†â€™n tiÃƒÂ¡Ã‚ÂºÃ‚Â¿p tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n");
         styleDialog(dialog);
-        ButtonType send = new ButtonType("Chuyển tiếp", ButtonBar.ButtonData.OK_DONE);
+        ButtonType send = new ButtonType("ChuyÃƒÂ¡Ã‚Â»Ã†â€™n tiÃƒÂ¡Ã‚ÂºÃ‚Â¿p", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(send, ButtonType.CANCEL);
         ListView<Conversation> list = new ListView<>(FXCollections.observableArrayList(targets));
         list.getStyleClass().add("dialog-list");
-        list.setCellFactory(view -> new ConversationCell());
+        list.setCellFactory(view -> new SidebarCells.ConversationCell());
         list.setPrefSize(460, 360);
-        VBox content = new VBox(10, label("Chọn hội thoại nhận tin:", "dialog-label"), list);
+        VBox content = new VBox(10, label("ChÃƒÂ¡Ã‚Â»Ã‚Ân hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i nhÃƒÂ¡Ã‚ÂºÃ‚Â­n tin:", "dialog-label"), list);
         content.getStyleClass().add("dialog-content");
         dialog.getDialogPane().setContent(content);
         dialog.setResultConverter(btn -> btn == send ? list.getSelectionModel().getSelectedItem() : null);
         dialog.showAndWait().ifPresent(target -> {
             String text = Texts.safe(msg.body).isBlank()
-                    ? "Chuyển tiếp file từ " + msg.senderName
-                    : "Chuyển tiếp: " + msg.body;
+                    ? "ChuyÃƒÂ¡Ã‚Â»Ã†â€™n tiÃƒÂ¡Ã‚ÂºÃ‚Â¿p file tÃƒÂ¡Ã‚Â»Ã‚Â« " + msg.senderName
+                    : "ChuyÃƒÂ¡Ã‚Â»Ã†â€™n tiÃƒÂ¡Ã‚ÂºÃ‚Â¿p: " + msg.body;
             runDb(() -> chatService.sendMessage(currentUser, target.id, text, null, List.of()), messageId -> {
                 loadConversations();
                 publishRealtime("MESSAGE_CREATED", target.id);
-                showInfo("Đã chuyển tiếp tin nhắn.");
+                showInfo("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ chuyÃƒÂ¡Ã‚Â»Ã†â€™n tiÃƒÂ¡Ã‚ÂºÃ‚Â¿p tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n.");
             }, e -> {
-                showError("Không chuyển tiếp được tin", e);
+                showError("KhÃƒÆ’Ã‚Â´ng chuyÃƒÂ¡Ã‚Â»Ã†â€™n tiÃƒÂ¡Ã‚ÂºÃ‚Â¿p Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c tin", e);
             });
         });
     }
@@ -1493,7 +1574,7 @@ public class ChatApp extends Application {
         }
         String raw = body.startsWith("[VOTE]") ? body.substring("[VOTE]".length()).trim() : body;
         String[] parts = raw.split("\\|");
-        Label title = new Label(parts.length == 0 ? "Bình chọn" : parts[0].trim());
+        Label title = new Label(parts.length == 0 ? "BÃƒÆ’Ã‚Â¬nh chÃƒÂ¡Ã‚Â»Ã‚Ân" : parts[0].trim());
         title.getStyleClass().add("vote-title");
         VBox box = new VBox(8, title);
         box.getStyleClass().add("vote-card");
@@ -1508,9 +1589,9 @@ public class ChatApp extends Application {
                 box.getChildren().add(option);
             }
             if (options.isEmpty()) {
-                box.getChildren().add(label("Chưa có lựa chọn.", "settings-note"));
+                box.getChildren().add(label("ChÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³ lÃƒÂ¡Ã‚Â»Ã‚Â±a chÃƒÂ¡Ã‚Â»Ã‚Ân.", "settings-note"));
             }
-        }, e -> box.getChildren().add(label("Không tải được kết quả vote.", "settings-note")));
+        }, e -> box.getChildren().add(label("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â£i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c kÃƒÂ¡Ã‚ÂºÃ‚Â¿t quÃƒÂ¡Ã‚ÂºÃ‚Â£ vote.", "settings-note")));
         return box;
     }
 
@@ -1522,13 +1603,13 @@ public class ChatApp extends Application {
         }, ok -> {
             refreshMessages(true);
             publishRealtime("MESSAGE_UPDATED", msg.conversationId);
-        }, e -> showError("Không lưu được lựa chọn vote", e));
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng lÃƒâ€ Ã‚Â°u Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c lÃƒÂ¡Ã‚Â»Ã‚Â±a chÃƒÂ¡Ã‚Â»Ã‚Ân vote", e));
     }
 
     private Node voteNode(String body) {
         String raw = body.substring("[VOTE]".length()).trim();
         String[] parts = raw.split("\\|");
-        Label title = new Label(parts.length == 0 ? "Bình chọn" : parts[0].trim());
+        Label title = new Label(parts.length == 0 ? "BÃƒÆ’Ã‚Â¬nh chÃƒÂ¡Ã‚Â»Ã‚Ân" : parts[0].trim());
         title.getStyleClass().add("vote-title");
         VBox box = new VBox(8, title);
         box.getStyleClass().add("vote-card");
@@ -1542,12 +1623,12 @@ public class ChatApp extends Application {
             option.setMaxWidth(Double.MAX_VALUE);
             option.setOnAction(e -> {
                 option.getStyleClass().add("vote-option-selected");
-                showToast("Đã chọn tạm thời: " + optionText);
+                showToast("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ chÃƒÂ¡Ã‚Â»Ã‚Ân tÃƒÂ¡Ã‚ÂºÃ‚Â¡m thÃƒÂ¡Ã‚Â»Ã‚Âi: " + optionText);
             });
             box.getChildren().add(option);
         }
         if (box.getChildren().size() == 1) {
-            box.getChildren().add(label("Chưa có lựa chọn.", "settings-note"));
+            box.getChildren().add(label("ChÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³ lÃƒÂ¡Ã‚Â»Ã‚Â±a chÃƒÂ¡Ã‚Â»Ã‚Ân.", "settings-note"));
         }
         return box;
     }
@@ -1568,7 +1649,7 @@ public class ChatApp extends Application {
         if ("AUDIO".equals(a.fileType) && f.isFile()) {
             return audioAttachmentNode(a, f);
         }
-        Label icon = new Label("VIDEO".equals(a.fileType) ? "▶" : "📄");
+        Label icon = new Label("VIDEO".equals(a.fileType) ? "ÃƒÂ¢Ã¢â‚¬â€œÃ‚Â¶" : "ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã¢â‚¬Å¾");
         icon.getStyleClass().add("file-icon");
         Label name = new Label(a.originalName);
         name.getStyleClass().add("file-name");
@@ -1576,7 +1657,7 @@ public class ChatApp extends Application {
         size.getStyleClass().add("file-size");
         VBox info = new VBox(2, name, size);
         HBox.setHgrow(info, Priority.ALWAYS);
-        Button open = new Button("Mở");
+        Button open = new Button("MÃƒÂ¡Ã‚Â»Ã…Â¸");
         open.getStyleClass().add("file-open-button");
         open.setOnAction(e -> openFile(f));
         HBox card = new HBox(10, icon, info, open);
@@ -1586,18 +1667,18 @@ public class ChatApp extends Application {
     }
 
     private Node audioAttachmentNode(Attachment a, File f) {
-        Label icon = new Label("🎙");
+        Label icon = new Label("ÃƒÂ°Ã…Â¸Ã…Â½Ã¢â€žÂ¢");
         icon.getStyleClass().add("file-icon");
         Label name = new Label(a.originalName);
         name.getStyleClass().add("file-name");
-        Label meta = new Label(formatSize(a.fileSize) + " · " + audioDurationText(f) + " · Phiên âm: đang chờ");
+        Label meta = new Label(formatSize(a.fileSize) + " Ãƒâ€šÃ‚Â· " + audioDurationText(f) + " Ãƒâ€šÃ‚Â· PhiÃƒÆ’Ã‚Âªn ÃƒÆ’Ã‚Â¢m: Ãƒâ€žÃ¢â‚¬Ëœang chÃƒÂ¡Ã‚Â»Ã‚Â");
         meta.getStyleClass().add("file-size");
         VBox info = new VBox(2, name, meta);
         HBox.setHgrow(info, Priority.ALWAYS);
-        Button play = new Button("Phát");
+        Button play = new Button("PhÃƒÆ’Ã‚Â¡t");
         play.getStyleClass().add("file-open-button");
         play.setOnAction(e -> playAudioFile(f, play));
-        Button open = new Button("Mở");
+        Button open = new Button("MÃƒÂ¡Ã‚Â»Ã…Â¸");
         open.getStyleClass().add("file-open-button");
         open.setOnAction(e -> openFile(f));
         HBox card = new HBox(10, icon, info, play, open);
@@ -1612,23 +1693,23 @@ public class ChatApp extends Application {
                 activeAudioClip.stop();
                 activeAudioClip.close();
                 activeAudioClip = null;
-                playButton.setText("Phát");
+                playButton.setText("PhÃƒÆ’Ã‚Â¡t");
                 return;
             }
             try (AudioInputStream stream = AudioSystem.getAudioInputStream(file)) {
                 Clip clip = AudioSystem.getClip();
                 clip.open(stream);
                 activeAudioClip = clip;
-                playButton.setText("Dừng");
+                playButton.setText("DÃƒÂ¡Ã‚Â»Ã‚Â«ng");
                 clip.addLineListener(event -> {
                     if (event.getType() == javax.sound.sampled.LineEvent.Type.STOP) {
-                        Platform.runLater(() -> playButton.setText("Phát"));
+                        Platform.runLater(() -> playButton.setText("PhÃƒÆ’Ã‚Â¡t"));
                     }
                 });
                 clip.start();
             }
         } catch (Exception ex) {
-            showError("Không phát được voice message", ex);
+            showError("KhÃƒÆ’Ã‚Â´ng phÃƒÆ’Ã‚Â¡t Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c voice message", ex);
         }
     }
 
@@ -1647,12 +1728,12 @@ public class ChatApp extends Application {
     }
 
     private Node salaryCardNode(ChatMessage msg) {
-        Label title = new Label("Phiếu lương bảo mật");
+        Label title = new Label("PhiÃƒÂ¡Ã‚ÂºÃ‚Â¿u lÃƒâ€ Ã‚Â°Ãƒâ€ Ã‚Â¡ng bÃƒÂ¡Ã‚ÂºÃ‚Â£o mÃƒÂ¡Ã‚ÂºÃ‚Â­t");
         title.getStyleClass().add("vote-title");
         Label body = new Label(Texts.safe(msg.body));
         body.getStyleClass().add("message-body");
         body.setWrapText(true);
-        Button open = new Button("Xem chi tiết phiếu lương");
+        Button open = new Button("Xem chi tiÃƒÂ¡Ã‚ÂºÃ‚Â¿t phiÃƒÂ¡Ã‚ÂºÃ‚Â¿u lÃƒâ€ Ã‚Â°Ãƒâ€ Ã‚Â¡ng");
         open.getStyleClass().add("file-open-button");
         open.setOnAction(e -> openSalaryCard(msg));
         VBox card = new VBox(8, title, body, open);
@@ -1661,19 +1742,19 @@ public class ChatApp extends Application {
     }
 
     private Node workflowCardNode(ChatMessage msg) {
-        Label title = new Label("Quy trình tương tác");
+        Label title = new Label("Quy trÃƒÆ’Ã‚Â¬nh tÃƒâ€ Ã‚Â°Ãƒâ€ Ã‚Â¡ng tÃƒÆ’Ã‚Â¡c");
         title.getStyleClass().add("vote-title");
         Label body = new Label(Texts.safe(msg.body));
         body.getStyleClass().add("message-body");
         body.setWrapText(true);
-        Label status = new Label("Trạng thái: " + (msg.workflowStatus == null || msg.workflowStatus.isBlank() ? "PENDING" : msg.workflowStatus));
+        Label status = new Label("TrÃƒÂ¡Ã‚ÂºÃ‚Â¡ng thÃƒÆ’Ã‚Â¡i: " + (msg.workflowStatus == null || msg.workflowStatus.isBlank() ? "PENDING" : msg.workflowStatus));
         status.getStyleClass().add("pin-chip");
         HBox actions = new HBox(8);
         if (currentUser.canManageGroups() && (msg.workflowStatus == null || "PENDING".equals(msg.workflowStatus))) {
-            Button approve = new Button("Đồng ý");
+            Button approve = new Button("Ãƒâ€žÃ‚ÂÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“ng ÃƒÆ’Ã‚Â½");
             approve.getStyleClass().add("file-open-button");
             approve.setOnAction(e -> decideWorkflow(msg, true));
-            Button reject = new Button("Từ chối");
+            Button reject = new Button("TÃƒÂ¡Ã‚Â»Ã‚Â« chÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœi");
             reject.getStyleClass().add("file-open-button");
             reject.setOnAction(e -> decideWorkflow(msg, false));
             actions.getChildren().addAll(approve, reject);
@@ -1690,57 +1771,57 @@ public class ChatApp extends Application {
             refreshMessages(true);
             publishRealtime("WORKFLOW_UPDATED", msg.conversationId);
             if (approved && !synced) {
-                showInfo("Workflow đã được duyệt trong chat, nhưng chưa tìm thấy bảng schedules/timekeeping để đồng bộ chấm công.");
+                showInfo("Workflow Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c duyÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡t trong chat, nhÃƒâ€ Ã‚Â°ng chÃƒâ€ Ã‚Â°a tÃƒÆ’Ã‚Â¬m thÃƒÂ¡Ã‚ÂºÃ‚Â¥y bÃƒÂ¡Ã‚ÂºÃ‚Â£ng schedules/timekeeping Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã†â€™ Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“ng bÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ chÃƒÂ¡Ã‚ÂºÃ‚Â¥m cÃƒÆ’Ã‚Â´ng.");
             }
-        }, e -> showError("Không cập nhật được workflow", e));
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng cÃƒÂ¡Ã‚ÂºÃ‚Â­p nhÃƒÂ¡Ã‚ÂºÃ‚Â­t Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c workflow", e));
     }
 
     private void openSalaryCard(ChatMessage msg) {
         PasswordField password = new PasswordField();
-        password.setPromptText("Nhập lại mật khẩu");
+        password.setPromptText("NhÃƒÂ¡Ã‚ÂºÃ‚Â­p lÃƒÂ¡Ã‚ÂºÃ‚Â¡i mÃƒÂ¡Ã‚ÂºÃ‚Â­t khÃƒÂ¡Ã‚ÂºÃ‚Â©u");
         password.getStyleClass().add("login-input");
         Dialog<String> dialog = new Dialog<>();
-        dialog.setTitle("Xác thực phiếu lương");
+        dialog.setTitle("XÃƒÆ’Ã‚Â¡c thÃƒÂ¡Ã‚Â»Ã‚Â±c phiÃƒÂ¡Ã‚ÂºÃ‚Â¿u lÃƒâ€ Ã‚Â°Ãƒâ€ Ã‚Â¡ng");
         styleDialog(dialog);
         ButtonType open = new ButtonType("Xem", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(open, ButtonType.CANCEL);
-        dialog.getDialogPane().setContent(new VBox(10, label("Vui lòng nhập lại mật khẩu để xem phiếu lương.", "dialog-label"), password));
+        dialog.getDialogPane().setContent(new VBox(10, label("Vui lÃƒÆ’Ã‚Â²ng nhÃƒÂ¡Ã‚ÂºÃ‚Â­p lÃƒÂ¡Ã‚ÂºÃ‚Â¡i mÃƒÂ¡Ã‚ÂºÃ‚Â­t khÃƒÂ¡Ã‚ÂºÃ‚Â©u Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã†â€™ xem phiÃƒÂ¡Ã‚ÂºÃ‚Â¿u lÃƒâ€ Ã‚Â°Ãƒâ€ Ã‚Â¡ng.", "dialog-label"), password));
         dialog.setResultConverter(btn -> btn == open ? password.getText() : null);
         dialog.showAndWait().ifPresent(pass -> runDb(() -> {
             CurrentUser verified = authService.login(currentUser.username, pass);
             if (verified == null) {
-                throw new IllegalArgumentException("Mật khẩu không đúng.");
+                throw new IllegalArgumentException("MÃƒÂ¡Ã‚ÂºÃ‚Â­t khÃƒÂ¡Ã‚ÂºÃ‚Â©u khÃƒÆ’Ã‚Â´ng Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Âºng.");
             }
             return chatService.salaryDetail(currentUser, msg.metadataJson);
         }, detail -> {
             Alert alert = new Alert(Alert.AlertType.INFORMATION, detail);
             styleDialog(alert);
-            alert.setTitle("Chi tiết phiếu lương");
-            alert.setHeaderText("Phiếu lương");
+            alert.setTitle("Chi tiÃƒÂ¡Ã‚ÂºÃ‚Â¿t phiÃƒÂ¡Ã‚ÂºÃ‚Â¿u lÃƒâ€ Ã‚Â°Ãƒâ€ Ã‚Â¡ng");
+            alert.setHeaderText("PhiÃƒÂ¡Ã‚ÂºÃ‚Â¿u lÃƒâ€ Ã‚Â°Ãƒâ€ Ã‚Â¡ng");
             alert.showAndWait();
-        }, e -> showError("Không mở được phiếu lương", e)));
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng mÃƒÂ¡Ã‚Â»Ã…Â¸ Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c phiÃƒÂ¡Ã‚ÂºÃ‚Â¿u lÃƒâ€ Ã‚Â°Ãƒâ€ Ã‚Â¡ng", e)));
     }
 
     private void showWorkflowDialog(String type) {
         if (currentConversation == null) {
-            showInfo("Hãy chọn hội thoại trước.");
+            showInfo("HÃƒÆ’Ã‚Â£y chÃƒÂ¡Ã‚Â»Ã‚Ân hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i trÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc.");
             return;
         }
         Dialog<String> dialog = new Dialog<>();
-        dialog.setTitle("OT".equals(type) ? "Xin tăng ca" : "Xin đổi ca");
+        dialog.setTitle("OT".equals(type) ? "Xin tÃƒâ€žÃ†â€™ng ca" : "Xin Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢i ca");
         styleDialog(dialog);
-        ButtonType send = new ButtonType("Gửi yêu cầu", ButtonBar.ButtonData.OK_DONE);
+        ButtonType send = new ButtonType("GÃƒÂ¡Ã‚Â»Ã‚Â­i yÃƒÆ’Ã‚Âªu cÃƒÂ¡Ã‚ÂºÃ‚Â§u", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(send, ButtonType.CANCEL);
         if ("LEAVE".equals(type)) {
-            dialog.setTitle("Xin nghỉ phép");
+            dialog.setTitle("Xin nghÃƒÂ¡Ã‚Â»Ã¢â‚¬Â° phÃƒÆ’Ã‚Â©p");
         }
         DatePicker date = new DatePicker(LocalDate.now().plusDays(1));
-        TextField shift = new TextField("OT".equals(type) ? "Tăng ca" : "Ca mới");
+        TextField shift = new TextField("OT".equals(type) ? "TÃƒâ€žÃ†â€™ng ca" : "Ca mÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºi");
         if ("LEAVE".equals(type)) {
-            shift.setText("Nghỉ phép");
+            shift.setText("NghÃƒÂ¡Ã‚Â»Ã¢â‚¬Â° phÃƒÆ’Ã‚Â©p");
         }
         shift.getStyleClass().add("dialog-search");
-        VBox content = new VBox(10, label("Ngày làm việc", "dialog-label"), date, label("Ca/Nội dung", "dialog-label"), shift);
+        VBox content = new VBox(10, label("NgÃƒÆ’Ã‚Â y lÃƒÆ’Ã‚Â m viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c", "dialog-label"), date, label("Ca/NÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i dung", "dialog-label"), shift);
         content.getStyleClass().add("dialog-content");
         dialog.getDialogPane().setContent(content);
         dialog.setResultConverter(btn -> btn == send ? shift.getText() : null);
@@ -1751,13 +1832,13 @@ public class ChatApp extends Application {
                 refreshMessages(true);
                 loadConversations();
                 publishRealtime("MESSAGE_CREATED", conversationId);
-            }, e -> showError("Không gửi được workflow", e));
+            }, e -> showError("KhÃƒÆ’Ã‚Â´ng gÃƒÂ¡Ã‚Â»Ã‚Â­i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c workflow", e));
         });
     }
 
     private void sendCurrentMessage() {
         if (currentConversation == null) {
-            showInfo("Hãy chọn hội thoại trước.");
+            showInfo("HÃƒÆ’Ã‚Â£y chÃƒÂ¡Ã‚Â»Ã‚Ân hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i trÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc.");
             return;
         }
         long conversationId = currentConversation.id;
@@ -1783,16 +1864,16 @@ public class ChatApp extends Application {
                 input.clear();
                 selectedFiles.clear();
                 updateAttachmentLabel();
-                showInfo("Không gửi được tin. App đã lưu vào hàng đợi offline và sẽ thử gửi lại sau.");
+                showInfo("KhÃƒÆ’Ã‚Â´ng gÃƒÂ¡Ã‚Â»Ã‚Â­i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c tin. App Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ lÃƒâ€ Ã‚Â°u vÃƒÆ’Ã‚Â o hÃƒÆ’Ã‚Â ng Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â£i offline vÃƒÆ’Ã‚Â  sÃƒÂ¡Ã‚ÂºÃ‚Â½ thÃƒÂ¡Ã‚Â»Ã‚Â­ gÃƒÂ¡Ã‚Â»Ã‚Â­i lÃƒÂ¡Ã‚ÂºÃ‚Â¡i sau.");
                 return;
             }
-            showError("Không gửi được tin", e);
+            showError("KhÃƒÆ’Ã‚Â´ng gÃƒÂ¡Ã‚Â»Ã‚Â­i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c tin", e);
         });
     }
 
     private void chooseFiles() {
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Chọn file gửi kèm");
+        chooser.setTitle("ChÃƒÂ¡Ã‚Â»Ã‚Ân file gÃƒÂ¡Ã‚Â»Ã‚Â­i kÃƒÆ’Ã‚Â¨m");
         List<File> files = chooser.showOpenMultipleDialog(stage);
         if (files != null && !files.isEmpty()) {
             selectedFiles.addAll(files);
@@ -1819,7 +1900,7 @@ public class ChatApp extends Application {
             line.start();
             if (voiceButton != null) {
                 voiceButton.getStyleClass().add("recording-button");
-                voiceButton.setTooltip(new Tooltip("Bấm để dừng ghi âm"));
+                voiceButton.setTooltip(new Tooltip("BÃƒÂ¡Ã‚ÂºÃ‚Â¥m Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã†â€™ dÃƒÂ¡Ã‚Â»Ã‚Â«ng ghi ÃƒÆ’Ã‚Â¢m"));
             }
             Thread writer = new Thread(() -> {
                 try (AudioInputStream stream = new AudioInputStream(line)) {
@@ -1830,11 +1911,11 @@ public class ChatApp extends Application {
             }, "chat-voice-recorder");
             writer.setDaemon(true);
             writer.start();
-            showToast("Đang ghi âm...");
+            showToast("Ãƒâ€žÃ‚Âang ghi ÃƒÆ’Ã‚Â¢m...");
         } catch (Exception e) {
             recordingLine = null;
             recordingFile = null;
-            showError("Không bắt đầu ghi âm được", e);
+            showError("KhÃƒÆ’Ã‚Â´ng bÃƒÂ¡Ã‚ÂºÃ‚Â¯t Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â§u ghi ÃƒÆ’Ã‚Â¢m Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c", e);
         }
     }
 
@@ -1847,45 +1928,45 @@ public class ChatApp extends Application {
             if (recordingFile != null && recordingFile.exists() && recordingFile.length() > 0) {
                 selectedFiles.add(recordingFile);
                 updateAttachmentLabel();
-                showToast("Đã thêm voice message vào tin nhắn.");
+                showToast("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ thÃƒÆ’Ã‚Âªm voice message vÃƒÆ’Ã‚Â o tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n.");
             }
         } catch (Exception e) {
-            showError("Không dừng ghi âm được", e);
+            showError("KhÃƒÆ’Ã‚Â´ng dÃƒÂ¡Ã‚Â»Ã‚Â«ng ghi ÃƒÆ’Ã‚Â¢m Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c", e);
         } finally {
             recordingLine = null;
             recordingFile = null;
             if (voiceButton != null) {
                 voiceButton.getStyleClass().remove("recording-button");
-                voiceButton.setTooltip(new Tooltip("Ghi âm voice message"));
+                voiceButton.setTooltip(new Tooltip("Ghi ÃƒÆ’Ã‚Â¢m voice message"));
             }
         }
     }
 
     private void showPlusMenu(Button owner) {
         ContextMenu menu = new ContextMenu();
-        MenuItem files = new MenuItem("Gửi file");
+        MenuItem files = new MenuItem("GÃƒÂ¡Ã‚Â»Ã‚Â­i file");
         files.setOnAction(e -> chooseFiles());
-        MenuItem media = new MenuItem("Gửi ảnh/video");
+        MenuItem media = new MenuItem("GÃƒÂ¡Ã‚Â»Ã‚Â­i ÃƒÂ¡Ã‚ÂºÃ‚Â£nh/video");
         media.setOnAction(e -> chooseMediaFiles());
-        MenuItem vote = new MenuItem("Tạo vote");
+        MenuItem vote = new MenuItem("TÃƒÂ¡Ã‚ÂºÃ‚Â¡o vote");
         vote.setOnAction(e -> showVoteDialog());
-        MenuItem scheduled = new MenuItem("Hẹn giờ gửi");
+        MenuItem scheduled = new MenuItem("HÃƒÂ¡Ã‚ÂºÃ‚Â¹n giÃƒÂ¡Ã‚Â»Ã‚Â gÃƒÂ¡Ã‚Â»Ã‚Â­i");
         scheduled.setOnAction(e -> showScheduledMessageDialog());
-        MenuItem scheduledCenter = new MenuItem("Quản lý tin hẹn giờ");
+        MenuItem scheduledCenter = new MenuItem("QuÃƒÂ¡Ã‚ÂºÃ‚Â£n lÃƒÆ’Ã‚Â½ tin hÃƒÂ¡Ã‚ÂºÃ‚Â¹n giÃƒÂ¡Ã‚Â»Ã‚Â");
         scheduledCenter.setOnAction(e -> showScheduledCenterDialog());
-        MenuItem reminder = new MenuItem("Tạo nhắc việc");
+        MenuItem reminder = new MenuItem("TÃƒÂ¡Ã‚ÂºÃ‚Â¡o nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c");
         reminder.setOnAction(e -> showReminderDialog(null));
-        MenuItem reminderCenter = new MenuItem("Quản lý nhắc việc");
+        MenuItem reminderCenter = new MenuItem("QuÃƒÂ¡Ã‚ÂºÃ‚Â£n lÃƒÆ’Ã‚Â½ nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c");
         reminderCenter.setOnAction(e -> showReminderCenterDialog());
-        MenuItem mentions = new MenuItem("Tin nhắc đến tôi");
+        MenuItem mentions = new MenuItem("Tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â¿n tÃƒÆ’Ã‚Â´i");
         mentions.setOnAction(e -> showMentionsDialog());
-        MenuItem exportHtml = new MenuItem("Xuất hội thoại HTML");
+        MenuItem exportHtml = new MenuItem("XuÃƒÂ¡Ã‚ÂºÃ‚Â¥t hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i HTML");
         exportHtml.setOnAction(e -> exportCurrentConversationHtml());
-        MenuItem ot = new MenuItem("Xin tăng ca");
+        MenuItem ot = new MenuItem("Xin tÃƒâ€žÃ†â€™ng ca");
         ot.setOnAction(e -> showWorkflowDialog("OT"));
-        MenuItem shift = new MenuItem("Xin đổi ca");
+        MenuItem shift = new MenuItem("Xin Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢i ca");
         shift.setOnAction(e -> showWorkflowDialog("SHIFT_CHANGE"));
-        MenuItem leave = new MenuItem("Xin nghỉ phép");
+        MenuItem leave = new MenuItem("Xin nghÃƒÂ¡Ã‚Â»Ã¢â‚¬Â° phÃƒÆ’Ã‚Â©p");
         leave.setOnAction(e -> showWorkflowDialog("LEAVE"));
         menu.getItems().addAll(files, media, vote, scheduled, scheduledCenter, reminder, reminderCenter, mentions, exportHtml, new SeparatorMenuItem(), ot, shift, leave);
         menu.show(owner, javafx.geometry.Side.TOP, 0, -8);
@@ -1893,10 +1974,10 @@ public class ChatApp extends Application {
 
     private void chooseMediaFiles() {
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Chọn ảnh hoặc video");
+        chooser.setTitle("ChÃƒÂ¡Ã‚Â»Ã‚Ân ÃƒÂ¡Ã‚ÂºÃ‚Â£nh hoÃƒÂ¡Ã‚ÂºÃ‚Â·c video");
         chooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Ảnh và video", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.mp4", "*.mov", "*.avi", "*.mkv"),
-                new FileChooser.ExtensionFilter("Ảnh", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp"),
+                new FileChooser.ExtensionFilter("ÃƒÂ¡Ã‚ÂºÃ‚Â¢nh vÃƒÆ’Ã‚Â  video", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.mp4", "*.mov", "*.avi", "*.mkv"),
+                new FileChooser.ExtensionFilter("ÃƒÂ¡Ã‚ÂºÃ‚Â¢nh", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp"),
                 new FileChooser.ExtensionFilter("Video", "*.mp4", "*.mov", "*.avi", "*.mkv"));
         List<File> files = chooser.showOpenMultipleDialog(stage);
         if (files != null && !files.isEmpty()) {
@@ -1907,17 +1988,17 @@ public class ChatApp extends Application {
 
     private void showScheduledMessageDialog() {
         if (currentConversation == null) {
-            showInfo("Hãy chọn hội thoại trước khi hẹn giờ gửi.");
+            showInfo("HÃƒÆ’Ã‚Â£y chÃƒÂ¡Ã‚Â»Ã‚Ân hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i trÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc khi hÃƒÂ¡Ã‚ÂºÃ‚Â¹n giÃƒÂ¡Ã‚Â»Ã‚Â gÃƒÂ¡Ã‚Â»Ã‚Â­i.");
             return;
         }
         Dialog<ScheduledDraft> dialog = new Dialog<>();
-        dialog.setTitle("Hẹn giờ gửi tin");
+        dialog.setTitle("HÃƒÂ¡Ã‚ÂºÃ‚Â¹n giÃƒÂ¡Ã‚Â»Ã‚Â gÃƒÂ¡Ã‚Â»Ã‚Â­i tin");
         styleDialog(dialog);
-        ButtonType schedule = new ButtonType("Hẹn giờ", ButtonBar.ButtonData.OK_DONE);
+        ButtonType schedule = new ButtonType("HÃƒÂ¡Ã‚ÂºÃ‚Â¹n giÃƒÂ¡Ã‚Â»Ã‚Â", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(schedule, ButtonType.CANCEL);
 
         TextArea body = new TextArea(input.getText());
-        body.setPromptText("Nội dung tin nhắn");
+        body.setPromptText("NÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i dung tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n");
         body.getStyleClass().add("dialog-text-area");
         body.setWrapText(true);
         DatePicker date = new DatePicker(LocalDate.now().plusDays(1));
@@ -1926,10 +2007,10 @@ public class ChatApp extends Application {
         time.getStyleClass().add("dialog-search");
 
         VBox content = new VBox(10,
-                label("Nội dung", "dialog-label"), body,
-                label("Ngày gửi", "dialog-label"), date,
-                label("Giờ gửi", "dialog-label"), time,
-                label("Server realtime sẽ tự gửi khi đến hạn.", "settings-note"));
+                label("NÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i dung", "dialog-label"), body,
+                label("NgÃƒÆ’Ã‚Â y gÃƒÂ¡Ã‚Â»Ã‚Â­i", "dialog-label"), date,
+                label("GiÃƒÂ¡Ã‚Â»Ã‚Â gÃƒÂ¡Ã‚Â»Ã‚Â­i", "dialog-label"), time,
+                label("Server realtime sÃƒÂ¡Ã‚ÂºÃ‚Â½ tÃƒÂ¡Ã‚Â»Ã‚Â± gÃƒÂ¡Ã‚Â»Ã‚Â­i khi Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â¿n hÃƒÂ¡Ã‚ÂºÃ‚Â¡n.", "settings-note"));
         content.getStyleClass().add("dialog-content");
         dialog.getDialogPane().setContent(content);
         dialog.setResultConverter(btn -> {
@@ -1939,7 +2020,7 @@ public class ChatApp extends Application {
             try {
                 return new ScheduledDraft(body.getText(), LocalDateTime.of(date.getValue(), LocalTime.parse(time.getText().trim())));
             } catch (Exception ex) {
-                showInfo("Giờ gửi phải đúng định dạng HH:mm.");
+                showInfo("GiÃƒÂ¡Ã‚Â»Ã‚Â gÃƒÂ¡Ã‚Â»Ã‚Â­i phÃƒÂ¡Ã‚ÂºÃ‚Â£i Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Âºng Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹nh dÃƒÂ¡Ã‚ÂºÃ‚Â¡ng HH:mm.");
                 return null;
             }
         });
@@ -1951,22 +2032,22 @@ public class ChatApp extends Application {
                 return id;
             }, id -> {
                 input.clear();
-                showInfo("Đã hẹn giờ gửi tin.");
+                showInfo("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ hÃƒÂ¡Ã‚ÂºÃ‚Â¹n giÃƒÂ¡Ã‚Â»Ã‚Â gÃƒÂ¡Ã‚Â»Ã‚Â­i tin.");
                 publishRealtime("CONVERSATION_UPDATED", conversationId);
-            }, e -> showError("Không hẹn giờ gửi được", e));
+            }, e -> showError("KhÃƒÆ’Ã‚Â´ng hÃƒÂ¡Ã‚ÂºÃ‚Â¹n giÃƒÂ¡Ã‚Â»Ã‚Â gÃƒÂ¡Ã‚Â»Ã‚Â­i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c", e));
         });
     }
 
     private void showScheduledCenterDialog() {
         runDb(() -> chatService.listScheduledMessages(currentUser), items -> {
             Dialog<Void> dialog = new Dialog<>();
-            dialog.setTitle("Quản lý tin hẹn giờ");
+            dialog.setTitle("QuÃƒÂ¡Ã‚ÂºÃ‚Â£n lÃƒÆ’Ã‚Â½ tin hÃƒÂ¡Ã‚ÂºÃ‚Â¹n giÃƒÂ¡Ã‚Â»Ã‚Â");
             styleDialog(dialog);
             dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
             VBox list = new VBox(10);
             list.getStyleClass().add("sidebar-page-list");
             if (items.isEmpty()) {
-                list.getChildren().add(emptyState("Chưa có tin hẹn giờ", "Các tin đã hẹn sẽ hiển thị tại đây."));
+                list.getChildren().add(emptyState("ChÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³ tin hÃƒÂ¡Ã‚ÂºÃ‚Â¹n giÃƒÂ¡Ã‚Â»Ã‚Â", "CÃƒÆ’Ã‚Â¡c tin Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ hÃƒÂ¡Ã‚ÂºÃ‚Â¹n sÃƒÂ¡Ã‚ÂºÃ‚Â½ hiÃƒÂ¡Ã‚Â»Ã†â€™n thÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ tÃƒÂ¡Ã‚ÂºÃ‚Â¡i Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â¢y."));
             } else {
                 for (ScheduledMessage item : items) {
                     list.getChildren().add(scheduledMessageCard(item, dialog));
@@ -1978,32 +2059,32 @@ public class ChatApp extends Application {
             scroll.getStyleClass().add("settings-scroll");
             dialog.getDialogPane().setContent(scroll);
             dialog.showAndWait();
-        }, e -> showError("Không tải được tin hẹn giờ", e));
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â£i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c tin hÃƒÂ¡Ã‚ÂºÃ‚Â¹n giÃƒÂ¡Ã‚Â»Ã‚Â", e));
     }
 
     private Node scheduledMessageCard(ScheduledMessage item, Dialog<?> owner) {
-        Label title = new Label((item.conversationTitle == null ? "Hội thoại" : item.conversationTitle) + " - " + item.status);
+        Label title = new Label((item.conversationTitle == null ? "HÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i" : item.conversationTitle) + " - " + item.status);
         title.getStyleClass().add("task-card-title");
-        Label time = new Label("Gửi lúc: " + (item.scheduledAt == null ? "" : item.scheduledAt.format(TASK_TIME)));
+        Label time = new Label("GÃƒÂ¡Ã‚Â»Ã‚Â­i lÃƒÆ’Ã‚Âºc: " + (item.scheduledAt == null ? "" : item.scheduledAt.format(TASK_TIME)));
         time.getStyleClass().add("task-deadline");
         Label body = new Label(Texts.shortText(item.body, 140));
         body.getStyleClass().add("conversation-last");
         body.setWrapText(true);
-        Button edit = new Button("Sửa");
+        Button edit = new Button("SÃƒÂ¡Ã‚Â»Ã‚Â­a");
         edit.getStyleClass().add("header-button");
         edit.setDisable(!"PENDING".equalsIgnoreCase(item.status));
         edit.setOnAction(e -> {
             owner.close();
             showEditScheduledDialog(item);
         });
-        Button cancel = new Button("Hủy");
+        Button cancel = new Button("HÃƒÂ¡Ã‚Â»Ã‚Â§y");
         cancel.getStyleClass().add("header-button");
         cancel.setDisable(!"PENDING".equalsIgnoreCase(item.status));
         cancel.setOnAction(e -> runDb(() -> {
             chatService.cancelScheduledMessage(currentUser, item.id);
             auditLogService.log(currentUser.username, "SCHEDULED_MESSAGE_CANCELLED", "SCHEDULED_MESSAGE", item.id, "");
             return true;
-        }, ok -> showScheduledCenterDialog(), ex -> showError("Không hủy được tin hẹn giờ", ex)));
+        }, ok -> showScheduledCenterDialog(), ex -> showError("KhÃƒÆ’Ã‚Â´ng hÃƒÂ¡Ã‚Â»Ã‚Â§y Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c tin hÃƒÂ¡Ã‚ÂºÃ‚Â¹n giÃƒÂ¡Ã‚Â»Ã‚Â", ex)));
         HBox actions = new HBox(8, edit, cancel);
         VBox card = new VBox(8, title, time, body, actions);
         card.getStyleClass().add("task-card");
@@ -2012,9 +2093,9 @@ public class ChatApp extends Application {
 
     private void showEditScheduledDialog(ScheduledMessage item) {
         Dialog<ScheduledDraft> dialog = new Dialog<>();
-        dialog.setTitle("Sửa tin hẹn giờ");
+        dialog.setTitle("SÃƒÂ¡Ã‚Â»Ã‚Â­a tin hÃƒÂ¡Ã‚ÂºÃ‚Â¹n giÃƒÂ¡Ã‚Â»Ã‚Â");
         styleDialog(dialog);
-        ButtonType save = new ButtonType("Lưu", ButtonBar.ButtonData.OK_DONE);
+        ButtonType save = new ButtonType("LÃƒâ€ Ã‚Â°u", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(save, ButtonType.CANCEL);
         TextArea body = new TextArea(item.body);
         body.getStyleClass().add("dialog-text-area");
@@ -2022,7 +2103,7 @@ public class ChatApp extends Application {
         DatePicker date = new DatePicker(item.scheduledAt == null ? LocalDate.now().plusDays(1) : item.scheduledAt.toLocalDate());
         TextField time = new TextField(item.scheduledAt == null ? "08:00" : item.scheduledAt.toLocalTime().withSecond(0).withNano(0).toString());
         time.getStyleClass().add("dialog-search");
-        VBox content = new VBox(10, label("Nội dung", "dialog-label"), body, label("Ngày gửi", "dialog-label"), date, label("Giờ gửi", "dialog-label"), time);
+        VBox content = new VBox(10, label("NÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i dung", "dialog-label"), body, label("NgÃƒÆ’Ã‚Â y gÃƒÂ¡Ã‚Â»Ã‚Â­i", "dialog-label"), date, label("GiÃƒÂ¡Ã‚Â»Ã‚Â gÃƒÂ¡Ã‚Â»Ã‚Â­i", "dialog-label"), time);
         content.getStyleClass().add("dialog-content");
         dialog.getDialogPane().setContent(content);
         dialog.setResultConverter(btn -> {
@@ -2030,7 +2111,7 @@ public class ChatApp extends Application {
             try {
                 return new ScheduledDraft(body.getText(), LocalDateTime.of(date.getValue(), LocalTime.parse(time.getText().trim())));
             } catch (Exception e) {
-                showInfo("Giờ gửi phải đúng định dạng HH:mm.");
+                showInfo("GiÃƒÂ¡Ã‚Â»Ã‚Â gÃƒÂ¡Ã‚Â»Ã‚Â­i phÃƒÂ¡Ã‚ÂºÃ‚Â£i Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Âºng Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹nh dÃƒÂ¡Ã‚ÂºÃ‚Â¡ng HH:mm.");
                 return null;
             }
         });
@@ -2038,30 +2119,30 @@ public class ChatApp extends Application {
             chatService.updateScheduledMessage(currentUser, item.id, draft.body, draft.scheduledAt);
             auditLogService.log(currentUser.username, "SCHEDULED_MESSAGE_UPDATED", "SCHEDULED_MESSAGE", item.id, "");
             return true;
-        }, ok -> showScheduledCenterDialog(), e -> showError("Không sửa được tin hẹn giờ", e)));
+        }, ok -> showScheduledCenterDialog(), e -> showError("KhÃƒÆ’Ã‚Â´ng sÃƒÂ¡Ã‚Â»Ã‚Â­a Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c tin hÃƒÂ¡Ã‚ÂºÃ‚Â¹n giÃƒÂ¡Ã‚Â»Ã‚Â", e)));
     }
 
     private void showReminderDialog(ChatReminder edit) {
         Dialog<ReminderDraft> dialog = new Dialog<>();
-        dialog.setTitle(edit == null ? "Tạo nhắc việc" : "Sửa nhắc việc");
+        dialog.setTitle(edit == null ? "TÃƒÂ¡Ã‚ÂºÃ‚Â¡o nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c" : "SÃƒÂ¡Ã‚Â»Ã‚Â­a nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c");
         styleDialog(dialog);
-        ButtonType save = new ButtonType("Lưu", ButtonBar.ButtonData.OK_DONE);
+        ButtonType save = new ButtonType("LÃƒâ€ Ã‚Â°u", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(save, ButtonType.CANCEL);
         TextField title = new TextField(edit == null ? "" : edit.title);
-        title.setPromptText("Tiêu đề");
+        title.setPromptText("TiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â");
         title.getStyleClass().add("dialog-search");
         TextArea body = new TextArea(edit == null ? "" : Texts.safe(edit.body));
-        body.setPromptText("Nội dung nhắc");
+        body.setPromptText("NÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i dung nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c");
         body.getStyleClass().add("dialog-text-area");
         body.setWrapText(true);
         DatePicker date = new DatePicker(edit == null || edit.remindAt == null ? LocalDate.now().plusDays(1) : edit.remindAt.toLocalDate());
         TextField time = new TextField(edit == null || edit.remindAt == null ? "08:00" : edit.remindAt.toLocalTime().withSecond(0).withNano(0).toString());
         time.getStyleClass().add("dialog-search");
-        CheckBox conversationReminder = new CheckBox("Gửi nhắc vào hội thoại hiện tại");
+        CheckBox conversationReminder = new CheckBox("GÃƒÂ¡Ã‚Â»Ã‚Â­i nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c vÃƒÆ’Ã‚Â o hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n tÃƒÂ¡Ã‚ÂºÃ‚Â¡i");
         conversationReminder.getStyleClass().add("settings-check");
         conversationReminder.setSelected(currentConversation != null && (edit == null || edit.conversationId != null));
-        VBox content = new VBox(10, label("Tiêu đề", "dialog-label"), title, label("Nội dung", "dialog-label"), body,
-                label("Ngày nhắc", "dialog-label"), date, label("Giờ nhắc", "dialog-label"), time, conversationReminder);
+        VBox content = new VBox(10, label("TiÃƒÆ’Ã‚Âªu Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã‚Â", "dialog-label"), title, label("NÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i dung", "dialog-label"), body,
+                label("NgÃƒÆ’Ã‚Â y nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c", "dialog-label"), date, label("GiÃƒÂ¡Ã‚Â»Ã‚Â nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c", "dialog-label"), time, conversationReminder);
         content.getStyleClass().add("dialog-content");
         dialog.getDialogPane().setContent(content);
         dialog.setResultConverter(btn -> {
@@ -2070,7 +2151,7 @@ public class ChatApp extends Application {
                 Long conversationId = conversationReminder.isSelected() && currentConversation != null ? currentConversation.id : null;
                 return new ReminderDraft(conversationId, title.getText(), body.getText(), LocalDateTime.of(date.getValue(), LocalTime.parse(time.getText().trim())));
             } catch (Exception e) {
-                showInfo("Giờ nhắc phải đúng định dạng HH:mm.");
+                showInfo("GiÃƒÂ¡Ã‚Â»Ã‚Â nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c phÃƒÂ¡Ã‚ÂºÃ‚Â£i Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Âºng Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹nh dÃƒÂ¡Ã‚ÂºÃ‚Â¡ng HH:mm.");
                 return null;
             }
         });
@@ -2083,16 +2164,16 @@ public class ChatApp extends Application {
                 auditLogService.log(currentUser.username, "REMINDER_UPDATED", "REMINDER", edit.id, "");
             }
             return true;
-        }, ok -> showReminderCenterDialog(), e -> showError("Không lưu được nhắc việc", e)));
+        }, ok -> showReminderCenterDialog(), e -> showError("KhÃƒÆ’Ã‚Â´ng lÃƒâ€ Ã‚Â°u Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c", e)));
     }
 
     private void showReminderCenterDialog() {
         runDb(() -> chatService.listReminders(currentUser), reminders -> {
             Dialog<Void> dialog = new Dialog<>();
-            dialog.setTitle("Quản lý nhắc việc");
+            dialog.setTitle("QuÃƒÂ¡Ã‚ÂºÃ‚Â£n lÃƒÆ’Ã‚Â½ nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c");
             styleDialog(dialog);
             dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-            Button add = new Button("Tạo nhắc việc");
+            Button add = new Button("TÃƒÂ¡Ã‚ÂºÃ‚Â¡o nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c");
             add.getStyleClass().add("header-button");
             add.setOnAction(e -> {
                 dialog.close();
@@ -2101,7 +2182,7 @@ public class ChatApp extends Application {
             VBox list = new VBox(10, add);
             list.getStyleClass().add("sidebar-page-list");
             if (reminders.isEmpty()) {
-                list.getChildren().add(emptyState("Chưa có nhắc việc", "Các nhắc việc sẽ hiển thị tại đây."));
+                list.getChildren().add(emptyState("ChÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³ nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c", "CÃƒÆ’Ã‚Â¡c nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c sÃƒÂ¡Ã‚ÂºÃ‚Â½ hiÃƒÂ¡Ã‚Â»Ã†â€™n thÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ tÃƒÂ¡Ã‚ÂºÃ‚Â¡i Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â¢y."));
             } else {
                 for (ChatReminder reminder : reminders) {
                     list.getChildren().add(reminderCard(reminder, dialog));
@@ -2113,34 +2194,34 @@ public class ChatApp extends Application {
             scroll.getStyleClass().add("settings-scroll");
             dialog.getDialogPane().setContent(scroll);
             dialog.showAndWait();
-        }, e -> showError("Không tải được nhắc việc", e));
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â£i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c", e));
     }
 
     private Node reminderCard(ChatReminder reminder, Dialog<?> owner) {
         Label title = new Label(reminder.title + " - " + reminder.status);
         title.getStyleClass().add("task-card-title");
-        Label target = new Label(reminder.conversationTitle == null ? "Nhắc cá nhân" : "Hội thoại: " + reminder.conversationTitle);
+        Label target = new Label(reminder.conversationTitle == null ? "NhÃƒÂ¡Ã‚ÂºÃ‚Â¯c cÃƒÆ’Ã‚Â¡ nhÃƒÆ’Ã‚Â¢n" : "HÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i: " + reminder.conversationTitle);
         target.getStyleClass().add("conversation-last");
-        Label time = new Label("Nhắc lúc: " + (reminder.remindAt == null ? "" : reminder.remindAt.format(TASK_TIME)));
+        Label time = new Label("NhÃƒÂ¡Ã‚ÂºÃ‚Â¯c lÃƒÆ’Ã‚Âºc: " + (reminder.remindAt == null ? "" : reminder.remindAt.format(TASK_TIME)));
         time.getStyleClass().add("task-deadline");
         Label body = new Label(Texts.shortText(reminder.body, 140));
         body.setWrapText(true);
         body.getStyleClass().add("conversation-last");
-        Button edit = new Button("Sửa");
+        Button edit = new Button("SÃƒÂ¡Ã‚Â»Ã‚Â­a");
         edit.getStyleClass().add("header-button");
         edit.setDisable(!"PENDING".equalsIgnoreCase(reminder.status));
         edit.setOnAction(e -> {
             owner.close();
             showReminderDialog(reminder);
         });
-        Button cancel = new Button("Hủy");
+        Button cancel = new Button("HÃƒÂ¡Ã‚Â»Ã‚Â§y");
         cancel.getStyleClass().add("header-button");
         cancel.setDisable(!"PENDING".equalsIgnoreCase(reminder.status));
         cancel.setOnAction(e -> runDb(() -> {
             chatService.cancelReminder(currentUser, reminder.id);
             auditLogService.log(currentUser.username, "REMINDER_CANCELLED", "REMINDER", reminder.id, "");
             return true;
-        }, ok -> showReminderCenterDialog(), ex -> showError("Không hủy được nhắc việc", ex)));
+        }, ok -> showReminderCenterDialog(), ex -> showError("KhÃƒÆ’Ã‚Â´ng hÃƒÂ¡Ã‚Â»Ã‚Â§y Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c", ex)));
         VBox card = new VBox(8, title, target, time, body, new HBox(8, edit, cancel));
         card.getStyleClass().add("task-card");
         return card;
@@ -2149,13 +2230,13 @@ public class ChatApp extends Application {
     private void showMentionsDialog() {
         runDb(() -> chatService.listMentionsForUser(currentUser), mentions -> {
             Dialog<Void> dialog = new Dialog<>();
-            dialog.setTitle("Tin nhắc đến tôi");
+            dialog.setTitle("Tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â¿n tÃƒÆ’Ã‚Â´i");
             styleDialog(dialog);
             dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
             VBox list = new VBox(10);
             list.getStyleClass().add("sidebar-page-list");
             if (mentions.isEmpty()) {
-                list.getChildren().add(emptyState("Chưa có mention", "Khi ai đó @ bạn, tin sẽ hiện ở đây."));
+                list.getChildren().add(emptyState("ChÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³ mention", "Khi ai Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â³ @ bÃƒÂ¡Ã‚ÂºÃ‚Â¡n, tin sÃƒÂ¡Ã‚ÂºÃ‚Â½ hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n ÃƒÂ¡Ã‚Â»Ã…Â¸ Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â¢y."));
             } else {
                 for (MentionItem mention : mentions) {
                     list.getChildren().add(mentionCard(mention, dialog));
@@ -2167,11 +2248,11 @@ public class ChatApp extends Application {
             scroll.getStyleClass().add("settings-scroll");
             dialog.getDialogPane().setContent(scroll);
             dialog.showAndWait();
-        }, e -> showError("Không tải được danh sách mention", e));
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â£i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c danh sÃƒÆ’Ã‚Â¡ch mention", e));
     }
 
     private Node mentionCard(MentionItem mention, Dialog<?> owner) {
-        Label title = new Label((mention.conversationTitle == null ? "Hội thoại" : mention.conversationTitle) + " - " + mention.senderName);
+        Label title = new Label((mention.conversationTitle == null ? "HÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i" : mention.conversationTitle) + " - " + mention.senderName);
         title.getStyleClass().add("task-card-title");
         Label body = new Label(Texts.shortText(mention.body, 140));
         body.getStyleClass().add("conversation-last");
@@ -2190,27 +2271,27 @@ public class ChatApp extends Application {
 
     private void showVoteDialog() {
         if (currentConversation == null) {
-            showInfo("Hãy chọn hội thoại trước khi tạo vote.");
+            showInfo("HÃƒÆ’Ã‚Â£y chÃƒÂ¡Ã‚Â»Ã‚Ân hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i trÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc khi tÃƒÂ¡Ã‚ÂºÃ‚Â¡o vote.");
             return;
         }
         Dialog<String> dialog = new Dialog<>();
-        dialog.setTitle("Tạo vote");
+        dialog.setTitle("TÃƒÂ¡Ã‚ÂºÃ‚Â¡o vote");
         styleDialog(dialog);
-        ButtonType create = new ButtonType("Tạo vote", ButtonBar.ButtonData.OK_DONE);
+        ButtonType create = new ButtonType("TÃƒÂ¡Ã‚ÂºÃ‚Â¡o vote", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(create, ButtonType.CANCEL);
         TextField question = new TextField();
-        question.setPromptText("Câu hỏi bình chọn");
+        question.setPromptText("CÃƒÆ’Ã‚Â¢u hÃƒÂ¡Ã‚Â»Ã‚Âi bÃƒÆ’Ã‚Â¬nh chÃƒÂ¡Ã‚Â»Ã‚Ân");
         question.getStyleClass().add("dialog-search");
-        TextArea options = new TextArea("Đồng ý\nKhông đồng ý");
-        options.setPromptText("Mỗi lựa chọn trên một dòng");
+        TextArea options = new TextArea("Ãƒâ€žÃ‚ÂÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“ng ÃƒÆ’Ã‚Â½\nKhÃƒÆ’Ã‚Â´ng Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“ng ÃƒÆ’Ã‚Â½");
+        options.setPromptText("MÃƒÂ¡Ã‚Â»Ã¢â‚¬â€i lÃƒÂ¡Ã‚Â»Ã‚Â±a chÃƒÂ¡Ã‚Â»Ã‚Ân trÃƒÆ’Ã‚Âªn mÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢t dÃƒÆ’Ã‚Â²ng");
         options.getStyleClass().add("dialog-text-area");
         options.setWrapText(true);
         VBox content = new VBox(10,
-                label("Câu hỏi", "dialog-label"),
+                label("CÃƒÆ’Ã‚Â¢u hÃƒÂ¡Ã‚Â»Ã‚Âi", "dialog-label"),
                 question,
-                label("Lựa chọn", "dialog-label"),
+                label("LÃƒÂ¡Ã‚Â»Ã‚Â±a chÃƒÂ¡Ã‚Â»Ã‚Ân", "dialog-label"),
                 options,
-                label("Vote V1 chỉ hiển thị lựa chọn trong chat, chưa lưu kết quả lâu dài.", "settings-note"));
+                label("Vote V1 chÃƒÂ¡Ã‚Â»Ã¢â‚¬Â° hiÃƒÂ¡Ã‚Â»Ã†â€™n thÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ lÃƒÂ¡Ã‚Â»Ã‚Â±a chÃƒÂ¡Ã‚Â»Ã‚Ân trong chat, chÃƒâ€ Ã‚Â°a lÃƒâ€ Ã‚Â°u kÃƒÂ¡Ã‚ÂºÃ‚Â¿t quÃƒÂ¡Ã‚ÂºÃ‚Â£ lÃƒÆ’Ã‚Â¢u dÃƒÆ’Ã‚Â i.", "settings-note"));
         content.getStyleClass().add("dialog-content");
         dialog.getDialogPane().setContent(content);
         dialog.setResultConverter(btn -> {
@@ -2238,7 +2319,7 @@ public class ChatApp extends Application {
                 loadConversations();
                 publishRealtime("MESSAGE_CREATED", conversationId);
             }, e -> {
-                showError("Không tạo được vote", e);
+                showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â¡o Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c vote", e);
             });
         });
     }
@@ -2250,7 +2331,7 @@ public class ChatApp extends Application {
             attachmentLabel.setManaged(false);
             return;
         }
-        attachmentLabel.setText("Đính kèm: " + selectedFiles.stream().map(File::getName).collect(Collectors.joining(", ")));
+        attachmentLabel.setText("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â­nh kÃƒÆ’Ã‚Â¨m: " + selectedFiles.stream().map(File::getName).collect(Collectors.joining(", ")));
         attachmentLabel.setVisible(true);
         attachmentLabel.setManaged(true);
     }
@@ -2266,15 +2347,15 @@ public class ChatApp extends Application {
             Dialog<ChatUser> dialog = new Dialog<>();
             dialog.setTitle("Chat 1-1");
             styleDialog(dialog);
-            ButtonType open = new ButtonType("Mở chat", ButtonBar.ButtonData.OK_DONE);
+            ButtonType open = new ButtonType("MÃƒÂ¡Ã‚Â»Ã…Â¸ chat", ButtonBar.ButtonData.OK_DONE);
             dialog.getDialogPane().getButtonTypes().addAll(open, ButtonType.CANCEL);
 
             TextField search = new TextField();
-            search.setPromptText("Tìm tên hoặc tài khoản");
+            search.setPromptText("TÃƒÆ’Ã‚Â¬m tÃƒÆ’Ã‚Âªn hoÃƒÂ¡Ã‚ÂºÃ‚Â·c tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n");
             search.getStyleClass().add("dialog-search");
             ListView<ChatUser> users = new ListView<>(visibleUsers);
             users.getStyleClass().add("dialog-list");
-            users.setCellFactory(list -> new UserCell());
+            users.setCellFactory(list -> new SidebarCells.UserCell(this::presenceText));
             users.setPrefSize(460, 420);
             Runnable filter = () -> {
                 String q = Texts.normalize(search.getText());
@@ -2298,33 +2379,33 @@ public class ChatApp extends Application {
                     loadConversations();
                     selectConversation(id);
                 } catch (Exception e) {
-                    showError("Không tạo được chat 1-1", e);
+                    showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â¡o Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c chat 1-1", e);
                 }
             });
         } catch (Exception e) {
-            showError("Không tải danh sách nhân viên", e);
+            showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â£i danh sÃƒÆ’Ã‚Â¡ch nhÃƒÆ’Ã‚Â¢n viÃƒÆ’Ã‚Âªn", e);
         }
     }
 
     private void openGroupDialog(Conversation editConversation) {
         if (!currentUser.canManageGroups()) {
-            showInfo("Chỉ Admin hoặc Trưởng phòng được tạo/quản lý nhóm.");
+            showInfo("ChÃƒÂ¡Ã‚Â»Ã¢â‚¬Â° Admin hoÃƒÂ¡Ã‚ÂºÃ‚Â·c TrÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã…Â¸ng phÃƒÆ’Ã‚Â²ng Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c tÃƒÂ¡Ã‚ÂºÃ‚Â¡o/quÃƒÂ¡Ã‚ÂºÃ‚Â£n lÃƒÆ’Ã‚Â½ nhÃƒÆ’Ã‚Â³m.");
             return;
         }
         try {
             companyUsers = chatService.listCompanyUsers(currentUser);
             List<String> currentMembers = editConversation == null ? List.of() : chatService.listMemberUsernames(editConversation.id);
             Dialog<GroupForm> dialog = new Dialog<>();
-            dialog.setTitle(editConversation == null ? "Tạo nhóm" : "Quản lý nhóm");
+            dialog.setTitle(editConversation == null ? "TÃƒÂ¡Ã‚ÂºÃ‚Â¡o nhÃƒÆ’Ã‚Â³m" : "QuÃƒÂ¡Ã‚ÂºÃ‚Â£n lÃƒÆ’Ã‚Â½ nhÃƒÆ’Ã‚Â³m");
             styleDialog(dialog);
-            ButtonType save = new ButtonType("Lưu", ButtonBar.ButtonData.OK_DONE);
+            ButtonType save = new ButtonType("LÃƒâ€ Ã‚Â°u", ButtonBar.ButtonData.OK_DONE);
             dialog.getDialogPane().getButtonTypes().addAll(save, ButtonType.CANCEL);
 
             TextField title = new TextField(editConversation == null ? "" : editConversation.title);
-            title.setPromptText("Tên nhóm");
+            title.setPromptText("TÃƒÆ’Ã‚Âªn nhÃƒÆ’Ã‚Â³m");
             title.getStyleClass().add("dialog-search");
             TextField search = new TextField();
-            search.setPromptText("Tìm thành viên");
+            search.setPromptText("TÃƒÆ’Ã‚Â¬m thÃƒÆ’Ã‚Â nh viÃƒÆ’Ã‚Âªn");
             search.getStyleClass().add("dialog-search");
 
             VBox checks = new VBox(6);
@@ -2351,7 +2432,7 @@ public class ChatApp extends Application {
             scroll.getStyleClass().add("dialog-scroll");
             scroll.setFitToWidth(true);
             scroll.setPrefHeight(430);
-            VBox content = new VBox(12, label("Tên nhóm", "dialog-label"), title, search, scroll);
+            VBox content = new VBox(12, label("TÃƒÆ’Ã‚Âªn nhÃƒÆ’Ã‚Â³m", "dialog-label"), title, search, scroll);
             content.getStyleClass().add("dialog-content");
             dialog.getDialogPane().setContent(content);
             dialog.setResultConverter(btn -> {
@@ -2373,11 +2454,11 @@ public class ChatApp extends Application {
                     loadConversations();
                     selectConversation(id);
                 } catch (Exception e) {
-                    showError("Không lưu được nhóm", e);
+                    showError("KhÃƒÆ’Ã‚Â´ng lÃƒâ€ Ã‚Â°u Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c nhÃƒÆ’Ã‚Â³m", e);
                 }
             });
         } catch (Exception e) {
-            showError("Không tải dữ liệu nhóm", e);
+            showError("KhÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚ÂºÃ‚Â£i dÃƒÂ¡Ã‚Â»Ã‚Â¯ liÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡u nhÃƒÆ’Ã‚Â³m", e);
         }
     }
 
@@ -2385,7 +2466,7 @@ public class ChatApp extends Application {
         TextArea area = new TextArea(Texts.safe(msg.body));
         area.getStyleClass().add("dialog-text-area");
         area.setWrapText(true);
-        Dialog<String> dialog = simpleDialog("Sửa tin nhắn", area);
+        Dialog<String> dialog = simpleDialog("SÃƒÂ¡Ã‚Â»Ã‚Â­a tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n", area);
         dialog.showAndWait().ifPresent(text -> {
             runDb(() -> {
                 chatService.editMessage(currentUser, msg.id, text);
@@ -2395,7 +2476,7 @@ public class ChatApp extends Application {
                 refreshMessages(true);
                 publishRealtime("MESSAGE_UPDATED", msg.conversationId);
             }, e -> {
-                showError("Không sửa được tin", e);
+                showError("KhÃƒÆ’Ã‚Â´ng sÃƒÂ¡Ã‚Â»Ã‚Â­a Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c tin", e);
             });
         });
     }
@@ -2409,7 +2490,7 @@ public class ChatApp extends Application {
             refreshMessages(true);
             publishRealtime("MESSAGE_UPDATED", msg.conversationId);
         }, e -> {
-            showError("Không thu hồi được tin", e);
+            showError("KhÃƒÆ’Ã‚Â´ng thu hÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“i Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c tin", e);
         });
     }
 
@@ -2422,7 +2503,7 @@ public class ChatApp extends Application {
             refreshMessages(true);
             publishRealtime("MESSAGE_UPDATED", msg.conversationId);
         }, e -> {
-            showError("Không ghim được tin", e);
+            showError("KhÃƒÆ’Ã‚Â´ng ghim Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c tin", e);
         });
     }
 
@@ -2437,17 +2518,17 @@ public class ChatApp extends Application {
             loadConversations();
             publishRealtime("CONVERSATION_UPDATED", conversationId);
         }, e -> {
-            showError("Không ghim được hội thoại", e);
+            showError("KhÃƒÆ’Ã‚Â´ng ghim Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i", e);
         });
     }
 
     private void exportCurrentConversationCsv() {
         if (currentConversation == null) {
-            showInfo("Hãy chọn hội thoại trước khi export.");
+            showInfo("HÃƒÆ’Ã‚Â£y chÃƒÂ¡Ã‚Â»Ã‚Ân hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i trÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc khi export.");
             return;
         }
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Xuất lịch sử chat");
+        chooser.setTitle("XuÃƒÂ¡Ã‚ÂºÃ‚Â¥t lÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ch sÃƒÂ¡Ã‚Â»Ã‚Â­ chat");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV", "*.csv"));
         chooser.setInitialFileName("chat-" + currentConversation.id + ".csv");
         File file = chooser.showSaveDialog(stage);
@@ -2460,16 +2541,16 @@ public class ChatApp extends Application {
             Path exported = reportService.exportChatHistoryCsv(currentUser, conversationId, target);
             auditLogService.log(currentUser.username, "CHAT_HISTORY_EXPORTED", "CONVERSATION", conversationId, exported.toString());
             return exported;
-        }, exported -> showInfo("Đã export lịch sử chat:\n" + exported), e -> showError("Không export được lịch sử chat", e));
+        }, exported -> showInfo("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ export lÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ch sÃƒÂ¡Ã‚Â»Ã‚Â­ chat:\n" + exported), e -> showError("KhÃƒÆ’Ã‚Â´ng export Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c lÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ch sÃƒÂ¡Ã‚Â»Ã‚Â­ chat", e));
     }
 
     private void exportCurrentConversationHtml() {
         if (currentConversation == null) {
-            showInfo("Hãy chọn hội thoại trước khi export.");
+            showInfo("HÃƒÆ’Ã‚Â£y chÃƒÂ¡Ã‚Â»Ã‚Ân hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i trÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc khi export.");
             return;
         }
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Xuất lịch sử chat HTML");
+        chooser.setTitle("XuÃƒÂ¡Ã‚ÂºÃ‚Â¥t lÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ch sÃƒÂ¡Ã‚Â»Ã‚Â­ chat HTML");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("HTML", "*.html"));
         chooser.setInitialDirectory(reportsDirectory().toFile());
         chooser.setInitialFileName("chat-" + currentConversation.id + ".html");
@@ -2482,51 +2563,51 @@ public class ChatApp extends Application {
             auditLogService.log(currentUser.username, "CHAT_HISTORY_HTML_EXPORTED", "CONVERSATION", conversationId, exported.toString());
             return exported;
         }, exported -> {
-            showInfo("Đã export lịch sử chat HTML:\n" + exported);
+            showInfo("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ export lÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ch sÃƒÂ¡Ã‚Â»Ã‚Â­ chat HTML:\n" + exported);
             try {
                 Desktop.getDesktop().open(exported.toFile());
             } catch (Exception ignored) {
             }
-        }, e -> showError("Không export được HTML", e));
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng export Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c HTML", e));
     }
 
     private void showAdvancedMessageSearchDialog() {
         if (currentConversation == null) {
-            showInfo("Hãy chọn hội thoại trước khi tìm kiếm.");
+            showInfo("HÃƒÆ’Ã‚Â£y chÃƒÂ¡Ã‚Â»Ã‚Ân hÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i trÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc khi tÃƒÆ’Ã‚Â¬m kiÃƒÂ¡Ã‚ÂºÃ‚Â¿m.");
             return;
         }
         Dialog<MessageSearchCriteria> dialog = new Dialog<>();
-        dialog.setTitle("Tìm kiếm nâng cao");
+        dialog.setTitle("TÃƒÆ’Ã‚Â¬m kiÃƒÂ¡Ã‚ÂºÃ‚Â¿m nÃƒÆ’Ã‚Â¢ng cao");
         styleDialog(dialog);
-        ButtonType search = new ButtonType("Tìm", ButtonBar.ButtonData.OK_DONE);
+        ButtonType search = new ButtonType("TÃƒÆ’Ã‚Â¬m", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(search, ButtonType.CANCEL);
 
         TextField keyword = new TextField(messageSearch == null ? "" : messageSearch.getText());
-        keyword.setPromptText("Từ khóa, tên file");
+        keyword.setPromptText("TÃƒÂ¡Ã‚Â»Ã‚Â« khÃƒÆ’Ã‚Â³a, tÃƒÆ’Ã‚Âªn file");
         keyword.getStyleClass().add("dialog-search");
         ComboBox<String> sender = new ComboBox<>();
         sender.getItems().add("");
         for (ChatUser user : companyUsers) {
             sender.getItems().add(user.username);
         }
-        sender.setPromptText("Người gửi");
+        sender.setPromptText("NgÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âi gÃƒÂ¡Ã‚Â»Ã‚Â­i");
         sender.getStyleClass().add("dialog-search");
         DatePicker from = new DatePicker();
         DatePicker to = new DatePicker();
-        CheckBox onlyFiles = new CheckBox("Chỉ tin có file");
-        CheckBox onlyPinned = new CheckBox("Chỉ tin đã ghim");
-        CheckBox onlyMentions = new CheckBox("Chỉ tin nhắc đến tôi");
-        CheckBox onlyTasks = new CheckBox("Chỉ task/workflow");
-        CheckBox includeArchive = new CheckBox("Tìm trong archive");
+        CheckBox onlyFiles = new CheckBox("ChÃƒÂ¡Ã‚Â»Ã¢â‚¬Â° tin cÃƒÆ’Ã‚Â³ file");
+        CheckBox onlyPinned = new CheckBox("ChÃƒÂ¡Ã‚Â»Ã¢â‚¬Â° tin Ãƒâ€žÃ¢â‚¬ËœÃƒÆ’Ã‚Â£ ghim");
+        CheckBox onlyMentions = new CheckBox("ChÃƒÂ¡Ã‚Â»Ã¢â‚¬Â° tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯c Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â¿n tÃƒÆ’Ã‚Â´i");
+        CheckBox onlyTasks = new CheckBox("ChÃƒÂ¡Ã‚Â»Ã¢â‚¬Â° task/workflow");
+        CheckBox includeArchive = new CheckBox("TÃƒÆ’Ã‚Â¬m trong archive");
         for (CheckBox cb : List.of(onlyFiles, onlyPinned, onlyMentions, onlyTasks, includeArchive)) {
             cb.getStyleClass().add("settings-check");
         }
 
         VBox content = new VBox(10,
-                label("Từ khóa", "dialog-label"), keyword,
-                label("Người gửi", "dialog-label"), sender,
-                label("Từ ngày", "dialog-label"), from,
-                label("Đến ngày", "dialog-label"), to,
+                label("TÃƒÂ¡Ã‚Â»Ã‚Â« khÃƒÆ’Ã‚Â³a", "dialog-label"), keyword,
+                label("NgÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âi gÃƒÂ¡Ã‚Â»Ã‚Â­i", "dialog-label"), sender,
+                label("TÃƒÂ¡Ã‚Â»Ã‚Â« ngÃƒÆ’Ã‚Â y", "dialog-label"), from,
+                label("Ãƒâ€žÃ‚ÂÃƒÂ¡Ã‚ÂºÃ‚Â¿n ngÃƒÆ’Ã‚Â y", "dialog-label"), to,
                 onlyFiles, onlyPinned, onlyMentions, onlyTasks, includeArchive);
         content.getStyleClass().add("dialog-content");
         dialog.getDialogPane().setContent(content);
@@ -2557,12 +2638,12 @@ public class ChatApp extends Application {
             }
             currentMessages = messages;
             if (messages.isEmpty()) {
-                messageBox.getChildren().setAll(emptyState("Không có kết quả", "Thử đổi từ khóa hoặc bộ lọc tìm kiếm."));
+                messageBox.getChildren().setAll(emptyState("KhÃƒÆ’Ã‚Â´ng cÃƒÆ’Ã‚Â³ kÃƒÂ¡Ã‚ÂºÃ‚Â¿t quÃƒÂ¡Ã‚ÂºÃ‚Â£", "ThÃƒÂ¡Ã‚Â»Ã‚Â­ Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢i tÃƒÂ¡Ã‚Â»Ã‚Â« khÃƒÆ’Ã‚Â³a hoÃƒÂ¡Ã‚ÂºÃ‚Â·c bÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ lÃƒÂ¡Ã‚Â»Ã‚Âc tÃƒÆ’Ã‚Â¬m kiÃƒÂ¡Ã‚ÂºÃ‚Â¿m."));
             } else {
                 messageBox.getChildren().setAll(messages.stream().map(this::messageNode).collect(Collectors.toList()));
             }
-            headerDetail.setText("Kết quả tìm kiếm nâng cao: " + messages.size() + " tin");
-        }, e -> showError("Không tìm kiếm được tin nhắn", e));
+            headerDetail.setText("KÃƒÂ¡Ã‚ÂºÃ‚Â¿t quÃƒÂ¡Ã‚ÂºÃ‚Â£ tÃƒÆ’Ã‚Â¬m kiÃƒÂ¡Ã‚ÂºÃ‚Â¿m nÃƒÆ’Ã‚Â¢ng cao: " + messages.size() + " tin");
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng tÃƒÆ’Ã‚Â¬m kiÃƒÂ¡Ã‚ÂºÃ‚Â¿m Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n", e));
     }
 
     private void connectRealtime() {
@@ -2701,7 +2782,7 @@ public class ChatApp extends Application {
         if (currentConversation == null || currentConversation.id != conversationId || actor == null || actor.isBlank() || actor.equals(currentUser.username)) {
             return;
         }
-        headerDetail.setText(actor + " đang nhập...");
+        headerDetail.setText(actor + " Ãƒâ€žÃ¢â‚¬Ëœang nhÃƒÂ¡Ã‚ÂºÃ‚Â­p...");
         if (typingClearDelay != null) {
             typingClearDelay.stop();
         }
@@ -2733,11 +2814,11 @@ public class ChatApp extends Application {
             }
         }
         if (userSettings.toastEnabled) {
-            showToast(conversation == null ? "Có tin nhắn mới" : "Có tin mới từ " + conversation.title);
+            showToast(conversation == null ? "CÃƒÆ’Ã‚Â³ tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n mÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºi" : "CÃƒÆ’Ã‚Â³ tin mÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºi tÃƒÂ¡Ã‚Â»Ã‚Â« " + conversation.title);
         }
         if (userSettings.toastEnabled) {
             lastNativeNotificationConversation = conversation;
-            showNativeNotification("Chat nội bộ", conversation == null ? "Có tin nhắn mới" : "Có tin mới từ " + conversation.title);
+            showNativeNotification("Chat nÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i bÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢", conversation == null ? "CÃƒÆ’Ã‚Â³ tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n mÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºi" : "CÃƒÆ’Ã‚Â³ tin mÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºi tÃƒÂ¡Ã‚Â»Ã‚Â« " + conversation.title);
         }
         if (conversation != null) {
             showChatHead(conversation);
@@ -2750,9 +2831,9 @@ public class ChatApp extends Application {
         popup.initOwner(stage);
         popup.setAlwaysOnTop(true);
         Node avatar = avatarNode(conversation.title, "chat-head-avatar", null);
-        Button close = new Button("×");
+        Button close = new Button("ÃƒÆ’Ã¢â‚¬â€");
         close.getStyleClass().add("chat-head-close");
-        close.setTooltip(new Tooltip("Ẩn thông báo nổi"));
+        close.setTooltip(new Tooltip("ÃƒÂ¡Ã‚ÂºÃ‚Â¨n thÃƒÆ’Ã‚Â´ng bÃƒÆ’Ã‚Â¡o nÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢i"));
         close.setOnAction(e -> {
             hideChatHead();
             e.consume();
@@ -2805,7 +2886,7 @@ public class ChatApp extends Application {
         g.setColor(java.awt.Color.WHITE);
         g.drawString("C", 5, 12);
         g.dispose();
-        trayIcon = new TrayIcon(image, "Chat nội bộ");
+        trayIcon = new TrayIcon(image, "Chat nÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i bÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢");
         trayIcon.setImageAutoSize(true);
         trayIcon.addActionListener(e -> Platform.runLater(() -> {
             if (stage != null) {
@@ -2850,172 +2931,60 @@ public class ChatApp extends Application {
 
     private void showAccountMenu(Button owner) {
         ContextMenu menu = new ContextMenu();
-        MenuItem settings = new MenuItem("Cài đặt");
+        MenuItem settings = new MenuItem("CÃƒÆ’Ã‚Â i Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚ÂºÃ‚Â·t");
         settings.setOnAction(e -> showSettingsDialog());
-        MenuItem account = new MenuItem("Thông tin tài khoản");
+        MenuItem account = new MenuItem("ThÃƒÆ’Ã‚Â´ng tin tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n");
         account.setOnAction(e -> showAccountInfo());
-        MenuItem logout = new MenuItem("Đăng xuất");
+        MenuItem logout = new MenuItem("Ãƒâ€žÃ‚ÂÃƒâ€žÃ†â€™ng xuÃƒÂ¡Ã‚ÂºÃ‚Â¥t");
         logout.setOnAction(e -> logoutAndExit());
         menu.getItems().addAll(settings, account, logout);
         menu.show(owner, javafx.geometry.Side.BOTTOM, 0, 6);
     }
 
     private void showSettingsDialog() {
-        Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle("Cài đặt");
-        styleDialog(dialog);
-        ButtonType save = new ButtonType("Lưu", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(save, ButtonType.CANCEL);
+        activeNav = "SETTINGS";
+        refreshNavActiveStyles();
+        new SettingsDialog(
+                stage,
+                config,
+                userSettings,
+                currentUser,
+                this::openFilesRoot,
+                this::openReportsFolder,
+                this::exportChatBackup,
+                this::restoreChatBackup,
+                this::showAdminDashboardDialog,
+                this::archiveOldMessages,
+                this::exportTaskReportHtml,
+                this::exportEngagementReportHtml,
+                this::afterSettingsSaved).show();
+    }
 
-        CheckBox sound = new CheckBox("Phát âm báo khi có tin nhắn mới");
-        sound.getStyleClass().add("settings-check");
-        sound.setSelected(userSettings.soundEnabled);
-        CheckBox toast = new CheckBox("Hiện thông báo nổi khi có tin nhắn mới");
-        toast.getStyleClass().add("settings-check");
-        toast.setSelected(userSettings.toastEnabled);
-        CheckBox darkMode = new CheckBox("Chế độ tối (chuẩn bị cho bản sau)");
-        darkMode.getStyleClass().add("settings-check");
-        darkMode.setSelected("dark".equalsIgnoreCase(userSettings.theme));
-        darkMode.setDisable(true);
-        CheckBox bandwidthSaving = new CheckBox("Tiết kiệm băng thông: không tự preview ảnh/video lớn");
-        bandwidthSaving.getStyleClass().add("settings-check");
-        bandwidthSaving.setSelected(userSettings.bandwidthSaving);
-        String[] selectedAccent = {validHex(userSettings.accentColor) ? userSettings.accentColor : "#007aff"};
-        VBox accentPalette = colorPalette(selectedAccent);
-        ComboBox<String> backgroundPicker = new ComboBox<>(FXCollections.observableArrayList(
-                "soft-blue", "clean-white", "mint", "lavender", "peach", "night"));
-        backgroundPicker.getStyleClass().add("dialog-search");
-        backgroundPicker.setValue(userSettings.chatBackground == null || userSettings.chatBackground.isBlank() ? "soft-blue" : userSettings.chatBackground);
-        String[] selectedAvatar = {userSettings.avatarPath(currentUser.username)};
-        Label avatarPath = new Label(selectedAvatar[0] == null || selectedAvatar[0].isBlank() ? "Chưa chọn avatar" : selectedAvatar[0]);
-        avatarPath.getStyleClass().add("settings-value");
-        avatarPath.setWrapText(true);
-        Button chooseAvatar = new Button("Chọn avatar");
-        chooseAvatar.getStyleClass().add("header-button");
-        chooseAvatar.setOnAction(e -> {
-            FileChooser chooser = new FileChooser();
-            chooser.setTitle("Chọn ảnh đại diện");
-            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Ảnh", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp"));
-            File file = chooser.showOpenDialog(stage);
-            if (file != null) {
-                selectedAvatar[0] = file.getAbsolutePath();
-                avatarPath.setText(selectedAvatar[0]);
+    private void afterSettingsSaved() {
+        applyPersonalization();
+        if (appRoot != null) {
+            appRoot.setCenter(buildWorkspace());
+            refreshConversationFilter();
+            if (currentConversation != null) {
+                conversationList.getSelectionModel().select(currentConversation);
             }
-        });
-
-        Label filePath = new Label(config.filesRoot.toAbsolutePath().toString());
-        filePath.getStyleClass().add("settings-value");
-        filePath.setWrapText(true);
-        Button openFolder = new Button("Mở thư mục");
-        openFolder.getStyleClass().add("header-button");
-        openFolder.setOnAction(e -> openFilesRoot());
-        TextField slackWebhook = new TextField(userSettings.slackWebhookUrl);
-        slackWebhook.setPromptText("Slack webhook URL");
-        slackWebhook.getStyleClass().add("dialog-search");
-        TextField teamsWebhook = new TextField(userSettings.teamsWebhookUrl);
-        teamsWebhook.setPromptText("Teams webhook URL");
-        teamsWebhook.getStyleClass().add("dialog-search");
-        Button backupData = new Button("Backup dữ liệu chat");
-        backupData.getStyleClass().add("header-button");
-        backupData.setDisable(!currentUser.isAdmin());
-        backupData.setOnAction(e -> exportChatBackup());
-        Button restoreData = new Button("Restore backup chat");
-        restoreData.getStyleClass().add("header-button");
-        restoreData.setDisable(!currentUser.isAdmin());
-        restoreData.setOnAction(e -> restoreChatBackup());
-        Button adminDashboard = new Button("Dashboard quản trị");
-        adminDashboard.getStyleClass().add("header-button");
-        adminDashboard.setDisable(!currentUser.isAdmin());
-        adminDashboard.setOnAction(e -> showAdminDashboardDialog());
-        Button archiveOldMessages = new Button("Archive tin cÅ©");
-        archiveOldMessages.getStyleClass().add("header-button");
-        archiveOldMessages.setDisable(!currentUser.isAdmin());
-        archiveOldMessages.setOnAction(e -> archiveOldMessages());
-        Button exportTaskHtml = new Button("Export task HTML");
-        exportTaskHtml.getStyleClass().add("header-button");
-        exportTaskHtml.setOnAction(e -> exportTaskReportHtml());
-        Button exportEngagementHtml = new Button("Export tương tác HTML");
-        exportEngagementHtml.getStyleClass().add("header-button");
-        exportEngagementHtml.setDisable(!currentUser.isAdmin());
-        exportEngagementHtml.setOnAction(e -> exportEngagementReportHtml());
-        Button openReportsFolder = new Button("Mở thư mục báo cáo");
-        openReportsFolder.getStyleClass().add("header-button");
-        openReportsFolder.setOnAction(e -> openReportsFolder());
-
-        VBox notificationSection = settingsSection("Thông báo", sound, toast);
-        VBox appearanceSection = settingsSection("Giao diện",
-                settingLine("Avatar", "Ảnh đại diện lưu riêng trên máy này"),
-                avatarPath,
-                chooseAvatar,
-                settingLine("Màu chủ đạo", "Chọn màu bạn thích cho nút, avatar và điểm nhấn"),
-                accentPalette,
-                settingLine("Nền khung chat", "soft-blue, clean-white, mint, lavender, peach, night"),
-                backgroundPicker,
-                bandwidthSaving,
-                darkMode,
-                label("Màu và nền được lưu riêng trên máy của từng nhân viên.", "settings-note"));
-        VBox fileSection = settingsSection("File", filePath, openFolder,
-                label(Files.exists(config.filesRoot) ? "Thư mục đang tồn tại." : "Thư mục chưa tồn tại, app sẽ tự tạo khi gửi file.", "settings-note"));
-        VBox systemSection = settingsSection("Hệ thống",
-                settingLine("Database", config.dbUrl),
-                settingLine("Giới hạn ảnh", config.maxImageMb + " MB"),
-                settingLine("Giới hạn video", config.maxVideoMb + " MB"),
-                settingLine("Giới hạn file", config.maxFileMb + " MB"),
-                settingLine("Làm mới tin nhắn", config.pollSeconds + " giây"),
-                settingLine("Tự xóa tin cũ", config.retentionDays + " ngày"),
-                settingLine("File cài đặt", userSettings.path().toString()));
-
-        systemSection.getChildren().addAll(adminDashboard, backupData, restoreData, archiveOldMessages, exportTaskHtml, exportEngagementHtml, openReportsFolder,
-                label(currentUser.isAdmin() ? "Backup xuất ZIP chứa CSV các bảng chat chính." : "Chỉ admin được backup dữ liệu chat.", "settings-note"));
-        VBox integrationSection = settingsSection("Tích hợp", slackWebhook, teamsWebhook,
-                label("URL để trống sẽ dùng cấu hình trong chat.properties nếu có.", "settings-note"));
-        VBox content = new VBox(14, notificationSection, appearanceSection, fileSection, integrationSection, systemSection);
-        content.getStyleClass().add("settings-content");
-        ScrollPane scroll = new ScrollPane(content);
-        scroll.setFitToWidth(true);
-        scroll.setPrefSize(620, 560);
-        scroll.getStyleClass().add("settings-scroll");
-        dialog.getDialogPane().setContent(scroll);
-        dialog.setResultConverter(btn -> {
-            if (btn == save) {
-                userSettings.soundEnabled = sound.isSelected();
-                userSettings.toastEnabled = toast.isSelected();
-                userSettings.theme = darkMode.isSelected() ? "dark" : "light";
-                userSettings.accentColor = selectedAccent[0];
-                userSettings.chatBackground = backgroundPicker.getValue();
-                userSettings.bandwidthSaving = bandwidthSaving.isSelected();
-                userSettings.slackWebhookUrl = slackWebhook.getText().trim();
-                userSettings.teamsWebhookUrl = teamsWebhook.getText().trim();
-                userSettings.setAvatarPath(currentUser.username, selectedAvatar[0]);
-                userSettings.save();
-                applyPersonalization();
-                if (appRoot != null) {
-                    appRoot.setCenter(buildWorkspace());
-                    refreshConversationFilter();
-                    if (currentConversation != null) {
-                        conversationList.getSelectionModel().select(currentConversation);
-                    }
-                }
-                refreshMessages(true);
-                showToast("Đã lưu cài đặt.");
-            }
-            return null;
-        });
-        dialog.showAndWait();
+        }
+        refreshMessages(true);
+        showToast("Ã„ÂÃƒÂ£ lÃ†Â°u cÃƒÂ i Ã„â€˜Ã¡ÂºÂ·t.");
     }
 
     private void showAccountInfo() {
         Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle("Thông tin tài khoản");
+        dialog.setTitle("ThÃƒÆ’Ã‚Â´ng tin tÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n");
         styleDialog(dialog);
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
         VBox content = new VBox(12,
-                settingLine("Tên hiển thị", currentUser.displayName),
-                settingLine("Tài khoản", currentUser.username),
-                settingLine("Vai trò", currentUser.isAdmin() ? "Quản trị viên" : "Nhân viên"),
-                settingLine("Công ty", currentUser.companyOwner),
-                settingLine("Phòng ban", Texts.safe(currentUser.department).isBlank() ? "Chưa cập nhật" : currentUser.department),
-                settingLine("Chức vụ", Texts.safe(currentUser.position).isBlank() ? "Chưa cập nhật" : currentUser.position));
+                settingLine("TÃƒÆ’Ã‚Âªn hiÃƒÂ¡Ã‚Â»Ã†â€™n thÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹", currentUser.displayName),
+                settingLine("TÃƒÆ’Ã‚Â i khoÃƒÂ¡Ã‚ÂºÃ‚Â£n", currentUser.username),
+                settingLine("Vai trÃƒÆ’Ã‚Â²", currentUser.isAdmin() ? "QuÃƒÂ¡Ã‚ÂºÃ‚Â£n trÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¹ viÃƒÆ’Ã‚Âªn" : "NhÃƒÆ’Ã‚Â¢n viÃƒÆ’Ã‚Âªn"),
+                settingLine("CÃƒÆ’Ã‚Â´ng ty", currentUser.companyOwner),
+                settingLine("PhÃƒÆ’Ã‚Â²ng ban", Texts.safe(currentUser.department).isBlank() ? "ChÃƒâ€ Ã‚Â°a cÃƒÂ¡Ã‚ÂºÃ‚Â­p nhÃƒÂ¡Ã‚ÂºÃ‚Â­t" : currentUser.department),
+                settingLine("ChÃƒÂ¡Ã‚Â»Ã‚Â©c vÃƒÂ¡Ã‚Â»Ã‚Â¥", Texts.safe(currentUser.position).isBlank() ? "ChÃƒâ€ Ã‚Â°a cÃƒÂ¡Ã‚ÂºÃ‚Â­p nhÃƒÂ¡Ã‚ÂºÃ‚Â­t" : currentUser.position));
         content.getStyleClass().add("settings-content");
         dialog.getDialogPane().setContent(content);
         dialog.showAndWait();
@@ -3024,10 +2993,10 @@ public class ChatApp extends Application {
     private void logoutAndExit() {
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
         styleDialog(confirm);
-        confirm.setTitle("Đăng xuất");
-        confirm.setHeaderText("Bạn muốn đăng xuất và thoát ứng dụng?");
-        confirm.setContentText("Ứng dụng sẽ dừng nhận tin nhắn mới trên máy này.");
-        ButtonType logout = new ButtonType("Đăng xuất", ButtonBar.ButtonData.OK_DONE);
+        confirm.setTitle("Ãƒâ€žÃ‚ÂÃƒâ€žÃ†â€™ng xuÃƒÂ¡Ã‚ÂºÃ‚Â¥t");
+        confirm.setHeaderText("BÃƒÂ¡Ã‚ÂºÃ‚Â¡n muÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœn Ãƒâ€žÃ¢â‚¬ËœÃƒâ€žÃ†â€™ng xuÃƒÂ¡Ã‚ÂºÃ‚Â¥t vÃƒÆ’Ã‚Â  thoÃƒÆ’Ã‚Â¡t ÃƒÂ¡Ã‚Â»Ã‚Â©ng dÃƒÂ¡Ã‚Â»Ã‚Â¥ng?");
+        confirm.setContentText("ÃƒÂ¡Ã‚Â»Ã‚Â¨ng dÃƒÂ¡Ã‚Â»Ã‚Â¥ng sÃƒÂ¡Ã‚ÂºÃ‚Â½ dÃƒÂ¡Ã‚Â»Ã‚Â«ng nhÃƒÂ¡Ã‚ÂºÃ‚Â­n tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n mÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºi trÃƒÆ’Ã‚Âªn mÃƒÆ’Ã‚Â¡y nÃƒÆ’Ã‚Â y.");
+        ButtonType logout = new ButtonType("Ãƒâ€žÃ‚ÂÃƒâ€žÃ†â€™ng xuÃƒÂ¡Ã‚ÂºÃ‚Â¥t", ButtonBar.ButtonData.OK_DONE);
         confirm.getButtonTypes().setAll(logout, ButtonType.CANCEL);
         confirm.showAndWait().ifPresent(choice -> {
             if (choice == logout) {
@@ -3058,7 +3027,7 @@ public class ChatApp extends Application {
             Files.createDirectories(config.filesRoot);
             Desktop.getDesktop().open(config.filesRoot.toFile());
         } catch (Exception e) {
-            showError("Không mở được thư mục file", e);
+            showError("KhÃƒÆ’Ã‚Â´ng mÃƒÂ¡Ã‚Â»Ã…Â¸ Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c thÃƒâ€ Ã‚Â° mÃƒÂ¡Ã‚Â»Ã‚Â¥c file", e);
         }
     }
 
@@ -3066,7 +3035,7 @@ public class ChatApp extends Application {
         try {
             Desktop.getDesktop().open(reportsDirectory().toFile());
         } catch (Exception e) {
-            showError("Không mở được thư mục báo cáo", e);
+            showError("KhÃƒÆ’Ã‚Â´ng mÃƒÂ¡Ã‚Â»Ã…Â¸ Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c thÃƒâ€ Ã‚Â° mÃƒÂ¡Ã‚Â»Ã‚Â¥c bÃƒÆ’Ã‚Â¡o cÃƒÆ’Ã‚Â¡o", e);
         }
     }
 
@@ -3153,11 +3122,11 @@ public class ChatApp extends Application {
 
     private void exportChatBackup() {
         if (!currentUser.isAdmin()) {
-            showInfo("Chỉ admin được backup dữ liệu chat.");
+            showInfo("ChÃƒÂ¡Ã‚Â»Ã¢â‚¬Â° admin Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c backup dÃƒÂ¡Ã‚Â»Ã‚Â¯ liÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡u chat.");
             return;
         }
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Backup dữ liệu chat");
+        chooser.setTitle("Backup dÃƒÂ¡Ã‚Â»Ã‚Â¯ liÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡u chat");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("ZIP", "*.zip"));
         chooser.setInitialFileName("chat-backup-" + LocalDate.now() + ".zip");
         File file = chooser.showSaveDialog(stage);
@@ -3169,24 +3138,24 @@ public class ChatApp extends Application {
             Path exported = backupService.exportChatBackup(currentUser, target);
             auditLogService.log(currentUser.username, "BACKUP_EXPORTED", "BACKUP", "chat", exported.toString());
             return exported;
-        }, exported -> showInfo("Đã backup dữ liệu chat:\n" + exported), e -> showError("Không backup được dữ liệu chat", e));
+        }, exported -> showInfo("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ backup dÃƒÂ¡Ã‚Â»Ã‚Â¯ liÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡u chat:\n" + exported), e -> showError("KhÃƒÆ’Ã‚Â´ng backup Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c dÃƒÂ¡Ã‚Â»Ã‚Â¯ liÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡u chat", e));
     }
 
     private void restoreChatBackup() {
         if (!currentUser.isAdmin()) {
-            showInfo("Chỉ admin được restore dữ liệu chat.");
+            showInfo("ChÃƒÂ¡Ã‚Â»Ã¢â‚¬Â° admin Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c restore dÃƒÂ¡Ã‚Â»Ã‚Â¯ liÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡u chat.");
             return;
         }
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Chọn file backup chat");
+        chooser.setTitle("ChÃƒÂ¡Ã‚Â»Ã‚Ân file backup chat");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("ZIP", "*.zip"));
         File file = chooser.showOpenDialog(stage);
         if (file == null) return;
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
         styleDialog(confirm);
         confirm.setTitle("Restore backup chat");
-        confirm.setHeaderText("Import dữ liệu từ backup?");
-        confirm.setContentText("Restore dùng INSERT IGNORE: không xóa dữ liệu hiện có, chỉ bổ sung bản ghi chưa có.");
+        confirm.setHeaderText("Import dÃƒÂ¡Ã‚Â»Ã‚Â¯ liÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡u tÃƒÂ¡Ã‚Â»Ã‚Â« backup?");
+        confirm.setContentText("Restore dÃƒÆ’Ã‚Â¹ng INSERT IGNORE: khÃƒÆ’Ã‚Â´ng xÃƒÆ’Ã‚Â³a dÃƒÂ¡Ã‚Â»Ã‚Â¯ liÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡u hiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n cÃƒÆ’Ã‚Â³, chÃƒÂ¡Ã‚Â»Ã¢â‚¬Â° bÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¢ sung bÃƒÂ¡Ã‚ÂºÃ‚Â£n ghi chÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³.");
         confirm.showAndWait().ifPresent(choice -> {
             if (choice == ButtonType.OK) {
                 runDb(() -> {
@@ -3194,10 +3163,10 @@ public class ChatApp extends Application {
                     auditLogService.log(currentUser.username, "BACKUP_RESTORED", "BACKUP", "chat", file.getAbsolutePath() + "; rows=" + count);
                     return count;
                 }, count -> {
-                    showInfo("Đã restore/import " + count + " dòng từ backup.");
+                    showInfo("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ restore/import " + count + " dÃƒÆ’Ã‚Â²ng tÃƒÂ¡Ã‚Â»Ã‚Â« backup.");
                     loadConversations();
                     refreshMessages(true);
-                }, e -> showError("Không restore được backup", e));
+                }, e -> showError("KhÃƒÆ’Ã‚Â´ng restore Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c backup", e));
             }
         });
     }
@@ -3216,17 +3185,17 @@ public class ChatApp extends Application {
             auditLogService.log(currentUser.username, "TASK_REPORT_HTML_EXPORTED", "REPORT", "chat_tasks", exported.toString());
             return exported;
         }, exported -> {
-            showInfo("Đã export task report HTML:\n" + exported);
+            showInfo("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ export task report HTML:\n" + exported);
             try {
                 Desktop.getDesktop().open(exported.toFile());
             } catch (Exception ignored) {
             }
-        }, e -> showError("Không export được task report HTML", e));
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng export Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c task report HTML", e));
     }
 
     private void exportEngagementReportHtml() {
         if (!currentUser.isAdmin()) {
-            showInfo("Chỉ admin được export báo cáo tương tác.");
+            showInfo("ChÃƒÂ¡Ã‚Â»Ã¢â‚¬Â° admin Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c export bÃƒÆ’Ã‚Â¡o cÃƒÆ’Ã‚Â¡o tÃƒâ€ Ã‚Â°Ãƒâ€ Ã‚Â¡ng tÃƒÆ’Ã‚Â¡c.");
             return;
         }
         FileChooser chooser = new FileChooser();
@@ -3242,190 +3211,49 @@ public class ChatApp extends Application {
             auditLogService.log(currentUser.username, "ENGAGEMENT_REPORT_HTML_EXPORTED", "REPORT", "engagement", exported.toString());
             return exported;
         }, exported -> {
-            showInfo("Đã export báo cáo tương tác HTML:\n" + exported);
+            showInfo("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ export bÃƒÆ’Ã‚Â¡o cÃƒÆ’Ã‚Â¡o tÃƒâ€ Ã‚Â°Ãƒâ€ Ã‚Â¡ng tÃƒÆ’Ã‚Â¡c HTML:\n" + exported);
             try {
                 Desktop.getDesktop().open(exported.toFile());
             } catch (Exception ignored) {
             }
-        }, e -> showError("Không export được báo cáo tương tác HTML", e));
+        }, e -> showError("KhÃƒÆ’Ã‚Â´ng export Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c bÃƒÆ’Ã‚Â¡o cÃƒÆ’Ã‚Â¡o tÃƒâ€ Ã‚Â°Ãƒâ€ Ã‚Â¡ng tÃƒÆ’Ã‚Â¡c HTML", e));
     }
 
     private void showAdminDashboardDialog() {
-        if (!currentUser.isAdmin()) {
-            showInfo("Chỉ admin được xem dashboard quản trị.");
-            return;
-        }
-        runDb(() -> adminDashboardService.dashboard(currentUser), dashboard -> {
-            Dialog<Void> dialog = new Dialog<>();
-            dialog.setTitle("Dashboard quản trị");
-            styleDialog(dialog);
-            dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-            VBox topGroups = new VBox(8);
-            topGroups.getStyleClass().add("settings-section");
-            Label topTitle = new Label("Nhóm hoạt động nhất");
-            topTitle.getStyleClass().add("settings-title");
-            topGroups.getChildren().add(topTitle);
-            if (dashboard.topConversations.isEmpty()) {
-                topGroups.getChildren().add(label("Chưa có dữ liệu hoạt động.", "settings-note"));
-            } else {
-                for (String line : dashboard.topConversations) {
-                    topGroups.getChildren().add(settingLine("Nhóm", line));
-                }
-            }
-            VBox content = new VBox(12,
-                    settingsSection("Người dùng",
-                            settingLine("Nhân viên đã duyệt", String.valueOf(dashboard.approvedUsers)),
-                            settingLine("Tài khoản chờ/khác", String.valueOf(dashboard.pendingUsers))),
-                    settingsSection("Hoạt động chat",
-                            settingLine("Hội thoại", String.valueOf(dashboard.conversations)),
-                            settingLine("Tin nhắn 7 ngày", String.valueOf(dashboard.messages7d)),
-                            settingLine("Task quá hạn", String.valueOf(dashboard.overdueTasks))),
-                    topGroups);
-            Button manageGroups = new Button("Quản lý nhóm");
-            manageGroups.getStyleClass().add("header-button");
-            manageGroups.setOnAction(event -> showAdminGroupManagerDialog());
-            Button filterAudit = new Button("Lọc audit");
-            filterAudit.getStyleClass().add("header-button");
-            filterAudit.setOnAction(event -> showAuditFilterDialog());
-            content.getChildren().add(new HBox(10, manageGroups, filterAudit));
-            TabPane detailTabs = new TabPane();
-            detailTabs.getTabs().addAll(
-                    dashboardListTab("User", dashboard.users),
-                    dashboardListTab("Nhóm", dashboard.conversationLines),
-                    dashboardListTab("Audit", dashboard.auditLines),
-                    dashboardListTab("Task", dashboard.taskLines));
-            detailTabs.setPrefHeight(320);
-            content.getChildren().add(detailTabs);
-            content.getStyleClass().add("settings-content");
-            ScrollPane scroll = new ScrollPane(content);
-            scroll.setFitToWidth(true);
-            scroll.setPrefSize(560, 520);
-            scroll.getStyleClass().add("settings-scroll");
-            dialog.getDialogPane().setContent(scroll);
-            dialog.showAndWait();
-            auditLogService.log(currentUser.username, "ADMIN_DASHBOARD_VIEWED", "DASHBOARD", currentUser.companyOwner, "");
-        }, e -> showError("Không tải được dashboard quản trị", e));
-    }
-
-    private void showAdminGroupManagerDialog() {
-        runDb(() -> chatService.listConversations(currentUser), loaded -> {
-            List<Conversation> groups = loaded.stream()
-                    .filter(c -> !"DIRECT".equals(c.type))
-                    .collect(Collectors.toList());
-            Dialog<Conversation> dialog = new Dialog<>();
-            dialog.setTitle("Quản lý nhóm/hội thoại");
-            styleDialog(dialog);
-            ButtonType manage = new ButtonType("Quản lý", ButtonBar.ButtonData.OK_DONE);
-            dialog.getDialogPane().getButtonTypes().addAll(manage, ButtonType.CANCEL);
-            ListView<Conversation> list = new ListView<>(FXCollections.observableArrayList(groups));
-            list.getStyleClass().add("dialog-list");
-            list.setCellFactory(view -> new ConversationCell());
-            list.setPrefSize(520, 420);
-            dialog.getDialogPane().setContent(new VBox(10,
-                    label("Chọn nhóm để mở màn quản lý thành viên/quyền.", "dialog-label"),
-                    list));
-            dialog.setResultConverter(btn -> btn == manage ? list.getSelectionModel().getSelectedItem() : null);
-            dialog.showAndWait().ifPresent(group -> {
-                if ("GROUP".equals(group.type)) {
-                    openGroupDialog(group);
-                } else {
-                    showInfo("Nhóm hệ thống " + group.title + " chỉ xem trong bản này, chưa chỉnh trực tiếp từ dashboard.");
-                }
-            });
-        }, e -> showError("Không tải được danh sách nhóm", e));
-    }
-
-    private void showAuditFilterDialog() {
-        Dialog<AuditFilter> dialog = new Dialog<>();
-        dialog.setTitle("Lọc audit log");
-        styleDialog(dialog);
-        ButtonType search = new ButtonType("Tìm", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(search, ButtonType.CANCEL);
-        TextField actor = new TextField();
-        actor.setPromptText("Tài khoản");
-        actor.getStyleClass().add("dialog-search");
-        TextField action = new TextField();
-        action.setPromptText("Hành động, ví dụ: MESSAGE, BACKUP, LOGIN");
-        action.getStyleClass().add("dialog-search");
-        DatePicker from = new DatePicker(LocalDate.now().minusDays(30));
-        DatePicker to = new DatePicker(LocalDate.now());
-        VBox content = new VBox(10,
-                label("Tài khoản", "dialog-label"), actor,
-                label("Hành động", "dialog-label"), action,
-                label("Từ ngày", "dialog-label"), from,
-                label("Đến ngày", "dialog-label"), to);
-        content.getStyleClass().add("dialog-content");
-        dialog.getDialogPane().setContent(content);
-        dialog.setResultConverter(btn -> btn == search ? new AuditFilter(actor.getText(), action.getText(), from.getValue(), to.getValue()) : null);
-        dialog.showAndWait().ifPresent(filter -> runDb(
-                () -> adminDashboardService.auditLines(currentUser, filter.actor, filter.action, filter.from, filter.to),
-                lines -> showAuditLinesDialog(lines),
-                e -> showError("Không lọc được audit log", e)));
-    }
-
-    private void showAuditLinesDialog(List<String> lines) {
-        Dialog<Void> dialog = new Dialog<>();
-        dialog.setTitle("Kết quả audit log");
-        styleDialog(dialog);
-        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
-        VBox box = new VBox(8);
-        box.getStyleClass().add("settings-content");
-        if (lines == null || lines.isEmpty()) {
-            box.getChildren().add(emptyState("Chưa có dữ liệu", "Không tìm thấy audit log phù hợp bộ lọc."));
-        } else {
-            for (String line : lines) {
-                Label row = new Label(line);
-                row.getStyleClass().add("settings-value");
-                row.setWrapText(true);
-                box.getChildren().add(row);
-            }
-        }
-        ScrollPane scroll = new ScrollPane(box);
-        scroll.setFitToWidth(true);
-        scroll.setPrefSize(640, 460);
-        scroll.getStyleClass().add("settings-scroll");
-        dialog.getDialogPane().setContent(scroll);
-        dialog.showAndWait();
-    }
-
-    private Tab dashboardListTab(String title, List<String> lines) {
-        VBox box = new VBox(8);
-        box.getStyleClass().add("settings-content");
-        if (lines == null || lines.isEmpty()) {
-            box.getChildren().add(emptyState("Chưa có dữ liệu", "Dữ liệu sẽ hiển thị khi hệ thống có bản ghi."));
-        } else {
-            for (String line : lines) {
-                Label label = new Label(line);
-                label.getStyleClass().add("settings-value");
-                label.setWrapText(true);
-                box.getChildren().add(label);
-            }
-        }
-        ScrollPane scroll = new ScrollPane(box);
-        scroll.setFitToWidth(true);
-        scroll.getStyleClass().add("settings-scroll");
-        Tab tab = new Tab(title, scroll);
-        tab.setClosable(false);
-        return tab;
+        new AdminDashboardDialog(
+                stage,
+                currentUser,
+                adminDashboardService,
+                chatService,
+                auditLogService,
+                new AdminDashboardDialog.DbRunner() {
+                    @Override
+                    public <T> void run(AdminDashboardDialog.DbCall<T> call, Consumer<T> onSuccess, Consumer<Exception> onFailed) {
+                        runDb(call::execute, onSuccess, onFailed);
+                    }
+                },
+                this::openGroupDialog,
+                this::showInfo,
+                this::showError).show();
     }
 
     private void archiveOldMessages() {
         if (!currentUser.isAdmin()) {
-            showInfo("Chỉ admin được archive tin nhắn.");
+            showInfo("ChÃƒÂ¡Ã‚Â»Ã¢â‚¬Â° admin Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c archive tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n.");
             return;
         }
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
         styleDialog(confirm);
-        confirm.setTitle("Archive tin cÅ©");
-        confirm.setHeaderText("Chuyển tin cũ sang bảng archive?");
-        confirm.setContentText("Tin cũ hơn " + config.retentionDays + " ngày sẽ được chuyển sang archive. Bạn vẫn có thể tìm lại bằng bộ lọc archive.");
+        confirm.setTitle("Archive tin cÃƒâ€¦Ã‚Â©");
+        confirm.setHeaderText("ChuyÃƒÂ¡Ã‚Â»Ã†â€™n tin cÃƒâ€¦Ã‚Â© sang bÃƒÂ¡Ã‚ÂºÃ‚Â£ng archive?");
+        confirm.setContentText("Tin cÃƒâ€¦Ã‚Â© hÃƒâ€ Ã‚Â¡n " + config.retentionDays + " ngÃƒÆ’Ã‚Â y sÃƒÂ¡Ã‚ÂºÃ‚Â½ Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c chuyÃƒÂ¡Ã‚Â»Ã†â€™n sang archive. BÃƒÂ¡Ã‚ÂºÃ‚Â¡n vÃƒÂ¡Ã‚ÂºÃ‚Â«n cÃƒÆ’Ã‚Â³ thÃƒÂ¡Ã‚Â»Ã†â€™ tÃƒÆ’Ã‚Â¬m lÃƒÂ¡Ã‚ÂºÃ‚Â¡i bÃƒÂ¡Ã‚ÂºÃ‚Â±ng bÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ lÃƒÂ¡Ã‚Â»Ã‚Âc archive.");
         confirm.showAndWait().ifPresent(choice -> {
             if (choice == ButtonType.OK) {
                 runDb(() -> {
                     int count = chatService.archiveOldMessages(currentUser, config.retentionDays);
                     auditLogService.log(currentUser.username, "MESSAGES_ARCHIVED", "ARCHIVE", currentUser.companyOwner, "count=" + count);
                     return count;
-                }, count -> showInfo("Đã archive " + count + " tin nhắn."), e -> showError("Không archive được tin cũ", e));
+                }, count -> showInfo("Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â£ archive " + count + " tin nhÃƒÂ¡Ã‚ÂºÃ‚Â¯n."), e -> showError("KhÃƒÆ’Ã‚Â´ng archive Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c tin cÃƒâ€¦Ã‚Â©", e));
             }
         });
     }
@@ -3442,7 +3270,7 @@ public class ChatApp extends Application {
     private HBox settingLine(String key, String value) {
         Label keyLabel = new Label(key);
         keyLabel.getStyleClass().add("settings-key");
-        Label valueLabel = new Label(value == null || value.isBlank() ? "Chưa cập nhật" : value);
+        Label valueLabel = new Label(value == null || value.isBlank() ? "ChÃƒâ€ Ã‚Â°a cÃƒÂ¡Ã‚ÂºÃ‚Â­p nhÃƒÂ¡Ã‚ÂºÃ‚Â­t" : value);
         valueLabel.getStyleClass().add("settings-value");
         valueLabel.setWrapText(true);
         HBox.setHgrow(valueLabel, Priority.ALWAYS);
@@ -3572,7 +3400,7 @@ public class ChatApp extends Application {
                 "#8b5cf6", "#6366f1", "#14b8a6", "#334155"
         };
         VBox wrapper = new VBox(8);
-        Label current = new Label("Màu đang chọn: " + selectedAccent[0]);
+        Label current = new Label("MÃƒÆ’Ã‚Â u Ãƒâ€žÃ¢â‚¬Ëœang chÃƒÂ¡Ã‚Â»Ã‚Ân: " + selectedAccent[0]);
         current.getStyleClass().add("settings-note");
         HBox row1 = new HBox(8);
         HBox row2 = new HBox(8);
@@ -3588,7 +3416,7 @@ public class ChatApp extends Application {
             }
             swatch.setOnAction(e -> {
                 selectedAccent[0] = color;
-                current.setText("Màu đang chọn: " + color);
+                current.setText("MÃƒÆ’Ã‚Â u Ãƒâ€žÃ¢â‚¬Ëœang chÃƒÂ¡Ã‚Â»Ã‚Ân: " + color);
                 for (Button b : buttons) {
                     b.getStyleClass().remove("color-swatch-selected");
                 }
@@ -3605,10 +3433,10 @@ public class ChatApp extends Application {
         ContextMenu menu = new ContextMenu();
         VBox box = new VBox(10);
         box.getStyleClass().add("emoji-panel");
-        addEmojiGroup(menu, box, "Cảm xúc", "😀", "😁", "😂", "🤣", "😊", "😍", "😘", "😎");
-        addEmojiGroup(menu, box, "Phản hồi nhanh", "👍", "👎", "👏", "🙏", "💪", "🔥", "✨", "❤️");
-        addEmojiGroup(menu, box, "Công việc", "✅", "❌", "📌", "📎", "📷", "🎬", "💼", "⏰");
-        addEmojiGroup(menu, box, "Không khí", "🎉", "⭐", "☕", "💡", "🚀", "🎯", "🏆", "💬");
+        addEmojiGroup(menu, box, "CÃƒÂ¡Ã‚ÂºÃ‚Â£m xÃƒÆ’Ã‚Âºc", "ÃƒÂ°Ã…Â¸Ã‹Å“Ã¢â€šÂ¬", "ÃƒÂ°Ã…Â¸Ã‹Å“Ã‚Â", "ÃƒÂ°Ã…Â¸Ã‹Å“Ã¢â‚¬Å¡", "ÃƒÂ°Ã…Â¸Ã‚Â¤Ã‚Â£", "ÃƒÂ°Ã…Â¸Ã‹Å“Ã…Â ", "ÃƒÂ°Ã…Â¸Ã‹Å“Ã‚Â", "ÃƒÂ°Ã…Â¸Ã‹Å“Ã‹Å“", "ÃƒÂ°Ã…Â¸Ã‹Å“Ã…Â½");
+        addEmojiGroup(menu, box, "PhÃƒÂ¡Ã‚ÂºÃ‚Â£n hÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“i nhanh", "ÃƒÂ°Ã…Â¸Ã¢â‚¬ËœÃ‚Â", "ÃƒÂ°Ã…Â¸Ã¢â‚¬ËœÃ…Â½", "ÃƒÂ°Ã…Â¸Ã¢â‚¬ËœÃ‚Â", "ÃƒÂ°Ã…Â¸Ã¢â€žÂ¢Ã‚Â", "ÃƒÂ°Ã…Â¸Ã¢â‚¬â„¢Ã‚Âª", "ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ‚Â¥", "ÃƒÂ¢Ã…â€œÃ‚Â¨", "ÃƒÂ¢Ã‚ÂÃ‚Â¤ÃƒÂ¯Ã‚Â¸Ã‚Â");
+        addEmojiGroup(menu, box, "CÃƒÆ’Ã‚Â´ng viÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡c", "ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦", "ÃƒÂ¢Ã‚ÂÃ…â€™", "ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã…â€™", "ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã…Â½", "ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã‚Â·", "ÃƒÂ°Ã…Â¸Ã…Â½Ã‚Â¬", "ÃƒÂ°Ã…Â¸Ã¢â‚¬â„¢Ã‚Â¼", "ÃƒÂ¢Ã‚ÂÃ‚Â°");
+        addEmojiGroup(menu, box, "KhÃƒÆ’Ã‚Â´ng khÃƒÆ’Ã‚Â­", "ÃƒÂ°Ã…Â¸Ã…Â½Ã¢â‚¬Â°", "ÃƒÂ¢Ã‚Â­Ã‚Â", "ÃƒÂ¢Ã‹Å“Ã¢â‚¬Â¢", "ÃƒÂ°Ã…Â¸Ã¢â‚¬â„¢Ã‚Â¡", "ÃƒÂ°Ã…Â¸Ã…Â¡Ã¢â€šÂ¬", "ÃƒÂ°Ã…Â¸Ã…Â½Ã‚Â¯", "ÃƒÂ°Ã…Â¸Ã‚ÂÃ¢â‚¬Â ", "ÃƒÂ°Ã…Â¸Ã¢â‚¬â„¢Ã‚Â¬");
         javafx.scene.control.CustomMenuItem item = new javafx.scene.control.CustomMenuItem(box, false);
         menu.getItems().add(item);
         menu.show(owner, javafx.geometry.Side.TOP, 0, -8);
@@ -3621,7 +3449,7 @@ public class ChatApp extends Application {
         for (String value : emojis) {
             Button emoji = new Button(value);
             emoji.getStyleClass().add("emoji-button");
-            emoji.setTooltip(new Tooltip("Chèn " + value));
+            emoji.setTooltip(new Tooltip("ChÃƒÆ’Ã‚Â¨n " + value));
             emoji.setOnAction(e -> {
                 input.appendText(value);
                 input.requestFocus();
@@ -3703,17 +3531,17 @@ public class ChatApp extends Application {
     private void openFile(File file) {
         try {
             if (!file.exists()) {
-                showInfo("File không tồn tại: " + file.getAbsolutePath());
+                showInfo("File khÃƒÆ’Ã‚Â´ng tÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“n tÃƒÂ¡Ã‚ÂºÃ‚Â¡i: " + file.getAbsolutePath());
                 return;
             }
             Desktop.getDesktop().open(file);
         } catch (Exception e) {
-            showError("Không mở được file", e);
+            showError("KhÃƒÆ’Ã‚Â´ng mÃƒÂ¡Ã‚Â»Ã…Â¸ Ãƒâ€žÃ¢â‚¬ËœÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Â£c file", e);
         }
     }
 
     private Node emptyState(String title, String detail) {
-        Label icon = new Label("💬");
+        Label icon = new Label("ÃƒÂ°Ã…Â¸Ã¢â‚¬â„¢Ã‚Â¬");
         icon.getStyleClass().add("empty-icon");
         Label titleLabel = new Label(title);
         titleLabel.getStyleClass().add("empty-title");
@@ -3789,11 +3617,11 @@ public class ChatApp extends Application {
 
     private static String conversationDescription(Conversation c) {
         String type = switch (c.type) {
-            case "DIRECT" -> "Trò chuyện 1-1";
-            case "GROUP" -> "Nhóm nội bộ";
-            case "COMPANY" -> "Toàn công ty";
-            case "DEPARTMENT" -> "Phòng ban";
-            default -> "Hội thoại";
+            case "DIRECT" -> "TrÃƒÆ’Ã‚Â² chuyÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n 1-1";
+            case "GROUP" -> "NhÃƒÆ’Ã‚Â³m nÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i bÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢";
+            case "COMPANY" -> "ToÃƒÆ’Ã‚Â n cÃƒÆ’Ã‚Â´ng ty";
+            case "DEPARTMENT" -> "PhÃƒÆ’Ã‚Â²ng ban";
+            default -> "HÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i thoÃƒÂ¡Ã‚ÂºÃ‚Â¡i";
         };
         return type + (c.lastMessage == null || c.lastMessage.isBlank() ? "" : " - " + c.lastMessage);
     }
@@ -3809,30 +3637,30 @@ public class ChatApp extends Application {
             }
             String other = members.stream().filter(username -> !username.equals(currentUser.username)).findFirst().orElse("");
             ChatUser user = companyUsers.stream().filter(u -> u.username.equals(other)).findFirst().orElse(null);
-            headerDetail.setText("Trò chuyện 1-1 · " + presenceText(user));
+            headerDetail.setText("TrÃƒÆ’Ã‚Â² chuyÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n 1-1 Ãƒâ€šÃ‚Â· " + presenceText(user));
         }, e -> {
         });
     }
 
     private String presenceText(ChatUser user) {
         if (user == null || user.lastSeenAt == null) {
-            return "Chưa có trạng thái hoạt động";
+            return "ChÃƒâ€ Ã‚Â°a cÃƒÆ’Ã‚Â³ trÃƒÂ¡Ã‚ÂºÃ‚Â¡ng thÃƒÆ’Ã‚Â¡i hoÃƒÂ¡Ã‚ÂºÃ‚Â¡t Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ng";
         }
         long minutes = java.time.Duration.between(user.lastSeenAt, LocalDateTime.now()).toMinutes();
         if (minutes < 0) {
             minutes = 0;
         }
         if (minutes <= 2) {
-            return "Đang online";
+            return "Ãƒâ€žÃ‚Âang online";
         }
         if (minutes < 60) {
-            return "Hoạt động " + minutes + " phút trước";
+            return "HoÃƒÂ¡Ã‚ÂºÃ‚Â¡t Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ng " + minutes + " phÃƒÆ’Ã‚Âºt trÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc";
         }
         long hours = minutes / 60;
         if (hours < 24) {
-            return "Hoạt động " + hours + " giờ trước";
+            return "HoÃƒÂ¡Ã‚ÂºÃ‚Â¡t Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ng " + hours + " giÃƒÂ¡Ã‚Â»Ã‚Â trÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc";
         }
-        return "Hoạt động " + (hours / 24) + " ngày trước";
+        return "HoÃƒÂ¡Ã‚ÂºÃ‚Â¡t Ãƒâ€žÃ¢â‚¬ËœÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢ng " + (hours / 24) + " ngÃƒÆ’Ã‚Â y trÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã¢â‚¬Âºc";
     }
 
     private static String roleSuffix(ChatUser user) {
@@ -3846,7 +3674,7 @@ public class ChatApp extends Application {
         Dialog<String> dialog = new Dialog<>();
         dialog.setTitle(title);
         styleDialog(dialog);
-        ButtonType save = new ButtonType("Lưu", ButtonBar.ButtonData.OK_DONE);
+        ButtonType save = new ButtonType("LÃƒâ€ Ã‚Â°u", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(save, ButtonType.CANCEL);
         VBox content = new VBox(10, area);
         content.getStyleClass().add("dialog-content");
@@ -3895,62 +3723,6 @@ public class ChatApp extends Application {
         }
     }
 
-    private final class ConversationCell extends ListCell<Conversation> {
-        @Override
-        protected void updateItem(Conversation item, boolean empty) {
-            super.updateItem(item, empty);
-            if (empty || item == null) {
-                setGraphic(null);
-                return;
-            }
-            Label avatar = avatar(item.title, "conversation-avatar");
-            Label title = new Label(item.title);
-            title.getStyleClass().add("conversation-title");
-            Label preview = new Label(item.lastMessage == null || item.lastMessage.isBlank() ? "Chưa có tin nhắn" : item.lastMessage);
-            preview.getStyleClass().add("conversation-last");
-            VBox text = new VBox(4, title, preview);
-            HBox.setHgrow(text, Priority.ALWAYS);
-
-            VBox right = new VBox(6);
-            right.setAlignment(Pos.CENTER_RIGHT);
-            if (item.updatedAt != null) {
-                Label time = new Label(item.updatedAt.format(CONVERSATION_TIME));
-                time.getStyleClass().add("conversation-time");
-                right.getChildren().add(time);
-            }
-            if (item.unreadCount > 0) {
-                Label unread = new Label(String.valueOf(item.unreadCount));
-                unread.getStyleClass().add("unread-badge");
-                right.getChildren().add(unread);
-            }
-
-            HBox row = new HBox(10, avatar, text, right);
-            row.setAlignment(Pos.CENTER_LEFT);
-            row.getStyleClass().add("conversation-row");
-            setGraphic(row);
-        }
-    }
-
-    private final class UserCell extends ListCell<ChatUser> {
-        @Override
-        protected void updateItem(ChatUser item, boolean empty) {
-            super.updateItem(item, empty);
-            if (empty || item == null) {
-                setGraphic(null);
-                return;
-            }
-            Label avatar = avatar(item.displayName, "conversation-avatar");
-            Label name = new Label(item.displayName);
-            name.getStyleClass().add("conversation-title");
-            Label detail = new Label(item.username + roleSuffix(item) + " · " + presenceText(item));
-            detail.getStyleClass().add("conversation-last");
-            HBox row = new HBox(10, avatar, new VBox(4, name, detail));
-            row.setAlignment(Pos.CENTER_LEFT);
-            row.getStyleClass().add("dialog-user-row");
-            setGraphic(row);
-        }
-    }
-
     private record GroupForm(String title, List<String> members) {
     }
 
@@ -3960,10 +3732,16 @@ public class ChatApp extends Application {
     private record ReminderDraft(Long conversationId, String title, String body, LocalDateTime remindAt) {
     }
 
-    private record AuditFilter(String actor, String action, LocalDate from, LocalDate to) {
+    record HomeSummary(int unread, int overdueTasks, int mentions, int pendingWorkflows, int dueToday) {
+        boolean isQuiet() {
+            return unread == 0 && overdueTasks == 0 && mentions == 0 && pendingWorkflows == 0 && dueToday == 0;
+        }
     }
 
     private record NotificationSummary(int overdueTasks, int mentions, int pendingWorkflows) {
+    }
+
+    private record TwoFactorResetRequest(String targetUsername, String confirmerUsername, String confirmerPassword) {
     }
 
     private record VoteDraft(String question, List<String> options) {

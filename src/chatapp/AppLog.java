@@ -1,10 +1,10 @@
 package chatapp;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class AppLog {
-    private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final Logger LOG = LoggerFactory.getLogger("CHAT_NOI_BO");
 
     private AppLog() {
     }
@@ -26,13 +26,17 @@ public final class AppLog {
     }
 
     private static void write(String level, String message, Throwable error) {
-        StringBuilder line = new StringBuilder()
-                .append('[').append(LocalDateTime.now().format(TS)).append("] ")
-                .append(level).append(" CHAT_NOI_BO - ")
-                .append(message == null ? "" : message);
-        if (error != null && error.getMessage() != null && !error.getMessage().isBlank()) {
-            line.append(" | ").append(error.getClass().getSimpleName()).append(": ").append(error.getMessage());
+        String safe = message == null ? "" : message;
+        if ("ERROR".equals(level)) {
+            LOG.error(safe, error);
+        } else if ("WARN".equals(level)) {
+            if (error == null) {
+                LOG.warn(safe);
+            } else {
+                LOG.warn(safe, error);
+            }
+        } else {
+            LOG.info(safe);
         }
-        System.err.println(line);
     }
 }

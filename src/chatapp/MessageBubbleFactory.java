@@ -41,8 +41,8 @@ final class MessageBubbleFactory {
         void loadPollOptions(ChatMessage msg, Consumer<List<PollOption>> onSuccess, Consumer<Exception> onError);
         void castPollVote(ChatMessage msg, PollOption option);
         void showToast(String message);
-        void openFile(File file);
-        void playAudioFile(File file, Button playButton);
+        void openAttachment(Attachment attachment);
+        void playAudioAttachment(Attachment attachment, Button playButton);
         void openSalaryCard(ChatMessage msg);
         void decideWorkflow(ChatMessage msg, boolean approved);
     }
@@ -248,11 +248,11 @@ final class MessageBubbleFactory {
     private Node attachmentNode(Attachment attachment) {
         File file = new File(attachment.sharedPath);
         boolean skipPreview = userSettings.bandwidthSaving && attachment.fileSize > 1024L * 1024L;
-        if ("IMAGE".equals(attachment.fileType) && file.isFile() && !skipPreview) {
+        if (!attachment.encrypted && "IMAGE".equals(attachment.fileType) && file.isFile() && !skipPreview) {
             VBox box = new VBox(6);
             ImageView view = new ImageView(new Image(file.toURI().toString(), 360, 240, true, true, true));
             view.getStyleClass().add("image-preview");
-            view.setOnMouseClicked(e -> callbacks.openFile(file));
+            view.setOnMouseClicked(e -> callbacks.openAttachment(attachment));
             Label caption = new Label(attachment.originalName);
             caption.getStyleClass().add("attachment-caption");
             box.getChildren().addAll(view, caption);
@@ -261,9 +261,9 @@ final class MessageBubbleFactory {
         if ("AUDIO".equals(attachment.fileType) && file.isFile()) {
             return audioAttachmentNode(attachment, file);
         }
-        Label icon = new Label("VIDEO".equals(attachment.fileType) ? "▶" : "📄");
+        Label icon = new Label("VIDEO".equals(attachment.fileType) ? "Video" : "File");
         icon.getStyleClass().add("file-icon");
-        Label name = new Label(attachment.originalName);
+        Label name = new Label(attachment.originalName + (attachment.encrypted ? "  • mã hóa" : ""));
         name.getStyleClass().add("file-name");
         Label size = new Label(formatSize(attachment.fileSize));
         size.getStyleClass().add("file-size");
@@ -271,7 +271,7 @@ final class MessageBubbleFactory {
         HBox.setHgrow(info, Priority.ALWAYS);
         Button open = new Button("Mở");
         open.getStyleClass().add("file-open-button");
-        open.setOnAction(e -> callbacks.openFile(file));
+        open.setOnAction(e -> callbacks.openAttachment(attachment));
         HBox card = new HBox(10, icon, info, open);
         card.setAlignment(Pos.CENTER_LEFT);
         card.getStyleClass().add("file-card");
@@ -279,26 +279,26 @@ final class MessageBubbleFactory {
     }
 
     private Node audioAttachmentNode(Attachment attachment, File file) {
-        Label icon = new Label("🎙");
+        Label icon = new Label("Audio");
         icon.getStyleClass().add("file-icon");
-        Label name = new Label(attachment.originalName);
+        Label name = new Label(attachment.originalName + (attachment.encrypted ? "  • mã hóa" : ""));
         name.getStyleClass().add("file-name");
-        Label meta = new Label(formatSize(attachment.fileSize) + " · " + audioDurationText(file) + " · Phiên âm: đang chờ");
+        String duration = attachment.encrypted ? "--:--" : audioDurationText(file);
+        Label meta = new Label(formatSize(attachment.fileSize) + " • " + duration + " • Phiên âm: đang chờ");
         meta.getStyleClass().add("file-size");
         VBox info = new VBox(2, name, meta);
         HBox.setHgrow(info, Priority.ALWAYS);
         Button play = new Button("Phát");
         play.getStyleClass().add("file-open-button");
-        play.setOnAction(e -> callbacks.playAudioFile(file, play));
+        play.setOnAction(e -> callbacks.playAudioAttachment(attachment, play));
         Button open = new Button("Mở");
         open.getStyleClass().add("file-open-button");
-        open.setOnAction(e -> callbacks.openFile(file));
+        open.setOnAction(e -> callbacks.openAttachment(attachment));
         HBox card = new HBox(10, icon, info, play, open);
         card.setAlignment(Pos.CENTER_LEFT);
         card.getStyleClass().add("file-card");
         return card;
     }
-
     private Node salaryCardNode(ChatMessage msg) {
         Label title = new Label("Phiếu lương bảo mật");
         title.getStyleClass().add("vote-title");
@@ -375,3 +375,4 @@ final class MessageBubbleFactory {
         return String.format("%.1f MB", mb);
     }
 }
+

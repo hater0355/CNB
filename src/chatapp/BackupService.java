@@ -17,7 +17,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
-final class BackupService {
+public final class BackupService {
     private static final List<String> CHAT_TABLES = List.of(
             "chat_conversations",
             "chat_members",
@@ -38,10 +38,30 @@ final class BackupService {
 
     private final Database db;
 
-    BackupService(Database db) {
+    public BackupService(Database db) {
         this.db = db;
     }
 
+    public Path exportSystemBackup(Path targetZip) throws Exception {
+        Path parent = targetZip.toAbsolutePath().getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        try (Connection c = db.getConnection();
+             ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(targetZip), StandardCharsets.UTF_8)) {
+            for (String table : CHAT_TABLES) {
+                if (!tableExists(c, table)) {
+                    continue;
+                }
+                zip.putNextEntry(new ZipEntry(table + ".csv"));
+                OutputStreamWriter writer = new OutputStreamWriter(zip, StandardCharsets.UTF_8);
+                writeTableCsv(c, table, writer);
+                writer.flush();
+                zip.closeEntry();
+            }
+        }
+        return targetZip;
+    }
     Path exportChatBackup(CurrentUser user, Path targetZip) throws Exception {
         if (!user.isAdmin()) {
             throw new IllegalArgumentException("Chỉ admin được backup dữ liệu chat.");

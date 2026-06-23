@@ -4,13 +4,24 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.time.LocalDate;
+import java.util.Base64;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import javax.crypto.Cipher;
+import javax.crypto.CipherInputStream;
+import javax.crypto.CipherOutputStream;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import javax.imageio.ImageIO;
 
 final class FileStorageService {
@@ -18,6 +29,7 @@ final class FileStorageService {
     private static final Set<String> IMAGES = Set.of("jpg", "jpeg", "png", "gif", "webp", "bmp");
     private static final Set<String> VIDEOS = Set.of("mp4", "mov", "avi", "mkv", "webm", "wmv");
     private static final Set<String> AUDIOS = Set.of("wav", "aiff", "aif", "au");
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final AppConfig config;
 
@@ -51,11 +63,52 @@ final class FileStorageService {
 
         String storedName = UUID.randomUUID() + (ext.isBlank() ? "" : "." + ext);
         Path target = dir.resolve(storedName);
-        if (!compressImageIfUseful(source, target, ext, type, size)) {
-            Files.copy(source.toPath(), target, StandardCopyOption.REPLACE_EXISTING);
+        Path plainTarget = target;
+        if (config.fileEncryptionEnabled) {
+            if (config.fileEncryptionKey == null || config.fileEncryptionKey.isBlank()) {
+                throw new IllegalStateException("Chưa cấu hình chat.file.encryption.key nên không thể mã hóa file.");
+            }
+            plainTarget = Files.createTempFile(dir, "plain-", ".tmp");
+        }
+        if (!compressImageIfUseful(source, plainTarget, ext, type, size)) {
+            Files.copy(source.toPath(), plainTarget, StandardCopyOption.REPLACE_EXISTING);
+        }
+        String mimeType = Files.probeContentType(plainTarget);
+        boolean encrypted = false;
+        String ivBase64 = null;
+        if (config.fileEncryptionEnabled) {
+            byte[] iv = new byte[12];
+            RANDOM.nextBytes(iv);
+            encryptFile(plainTarget, target, iv);
+            Files.deleteIfExists(plainTarget);
+            encrypted = true;
+            ivBase64 = Base64.getEncoder().encodeToString(iv);
         }
         long finalSize = Files.size(target);
-        return new StoredFile(source.getName(), storedName, type, Files.probeContentType(target), finalSize, target.toAbsolutePath().toString());
+        return new StoredFile(source.getName(), storedName, type, mimeType, finalSize, target.toAbsolutePath().toString(), encrypted, ivBase64);
+    }
+
+    File openableFile(Attachment attachment) throws Exception {
+        if (attachment == null || attachment.sharedPath == null || attachment.sharedPath.isBlank()) {
+            throw new IllegalArgumentException("File không hợp lệ.");
+        }
+        Path source = Path.of(attachment.sharedPath);
+        if (!Files.isRegularFile(source)) {
+            throw new IllegalArgumentException("File không tồn tại: " + source.toAbsolutePath());
+        }
+        if (!attachment.encrypted) {
+            return source.toFile();
+        }
+        if (attachment.cryptoIv == null || attachment.cryptoIv.isBlank()) {
+            throw new IllegalStateException("File đã mã hóa nhưng thiếu IV.");
+        }
+        Path dir = Path.of(System.getProperty("java.io.tmpdir"), "CHAT_NOI_BO", "opened");
+        Files.createDirectories(dir);
+        String name = clean(attachment.originalName == null ? source.getFileName().toString() : attachment.originalName);
+        Path target = dir.resolve(UUID.randomUUID() + "-" + name);
+        decryptFile(source, target, Base64.getDecoder().decode(attachment.cryptoIv));
+        target.toFile().deleteOnExit();
+        return target.toFile();
     }
 
     private boolean compressImageIfUseful(File source, Path target, String ext, String type, long size) {
@@ -93,6 +146,38 @@ final class FileStorageService {
         }
     }
 
+    private void encryptFile(Path source, Path target, byte[] iv) throws Exception {
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, encryptionKey(), new GCMParameterSpec(128, iv));
+        try (InputStream in = Files.newInputStream(source);
+             OutputStream out = new CipherOutputStream(Files.newOutputStream(target), cipher)) {
+            in.transferTo(out);
+        }
+    }
+
+    private void decryptFile(Path source, Path target, byte[] iv) throws Exception {
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.DECRYPT_MODE, encryptionKey(), new GCMParameterSpec(128, iv));
+        try (InputStream in = new CipherInputStream(Files.newInputStream(source), cipher);
+             OutputStream out = Files.newOutputStream(target)) {
+            in.transferTo(out);
+        }
+    }
+
+    private SecretKeySpec encryptionKey() throws Exception {
+        String key = config.fileEncryptionKey == null ? "" : config.fileEncryptionKey.trim();
+        byte[] raw;
+        try {
+            raw = Base64.getDecoder().decode(key);
+        } catch (IllegalArgumentException ignored) {
+            raw = MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8));
+        }
+        if (raw.length != 32) {
+            raw = MessageDigest.getInstance("SHA-256").digest(raw);
+        }
+        return new SecretKeySpec(raw, "AES");
+    }
+
     static String extension(String name) {
         int idx = name == null ? -1 : name.lastIndexOf('.');
         return idx < 0 ? "" : name.substring(idx + 1).toLowerCase(Locale.ROOT);
@@ -116,14 +201,18 @@ final class FileStorageService {
         final String mimeType;
         final long fileSize;
         final String sharedPath;
+        final boolean encrypted;
+        final String cryptoIv;
 
-        StoredFile(String originalName, String storedName, String fileType, String mimeType, long fileSize, String sharedPath) {
+        StoredFile(String originalName, String storedName, String fileType, String mimeType, long fileSize, String sharedPath, boolean encrypted, String cryptoIv) {
             this.originalName = originalName;
             this.storedName = storedName;
             this.fileType = fileType;
             this.mimeType = mimeType;
             this.fileSize = fileSize;
             this.sharedPath = sharedPath;
+            this.encrypted = encrypted;
+            this.cryptoIv = cryptoIv;
         }
     }
 }

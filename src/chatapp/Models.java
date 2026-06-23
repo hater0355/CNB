@@ -100,10 +100,25 @@ final class Attachment {
     long id;
     long messageId;
     String originalName;
+    String storedName;
     String fileType;
     String mimeType;
     long fileSize;
     String sharedPath;
+    boolean encrypted;
+    String cryptoIv;
+}
+
+final class MessagePage {
+    final List<ChatMessage> messages;
+    final Long nextBeforeId;
+    final boolean hasMore;
+
+    MessagePage(List<ChatMessage> messages, Long nextBeforeId, boolean hasMore) {
+        this.messages = messages;
+        this.nextBeforeId = nextBeforeId;
+        this.hasMore = hasMore;
+    }
 }
 
 final class TaskTarget {

@@ -63,6 +63,8 @@ public final class SchemaManager {
                     "file_size BIGINT NOT NULL," +
                     "shared_path VARCHAR(1000) NOT NULL," +
                     "CONSTRAINT fk_chat_attachments_message FOREIGN KEY (message_id) REFERENCES chat_messages(id) ON DELETE CASCADE)");
+            addColumnIfMissing(c, "chat_attachments", "encrypted", "BOOLEAN NOT NULL DEFAULT FALSE");
+            addColumnIfMissing(c, "chat_attachments", "crypto_iv", "VARCHAR(64) NULL");
             st.execute("CREATE TABLE IF NOT EXISTS chat_read_receipts (" +
                     "message_id BIGINT NOT NULL," +
                     "username VARCHAR(50) NOT NULL," +

@@ -143,6 +143,10 @@ public class ChatApp extends Application {
     private boolean loadingConversations;
     private long lastRenderedConversationId = -1;
     private String lastRenderedMessageKey = "";
+    private Long nextBeforeMessageId;
+    private boolean hasMoreMessages;
+    private boolean loadingOlderMessages;
+    private String currentMessageSearch = "";
     private boolean forceScrollToBottom;
     private Stage chatHeadStage;
     private final Set<Long> animatedMessageIds = new HashSet<>();
@@ -150,6 +154,7 @@ public class ChatApp extends Application {
     private PauseTransition typingClearDelay;
     private ContextMenu mentionMenu;
     private TrayIcon trayIcon;
+    private boolean exitingApp;
     private Conversation lastNativeNotificationConversation;
     private TargetDataLine recordingLine;
     private File recordingFile;
@@ -164,6 +169,19 @@ public class ChatApp extends Application {
     public void start(Stage primaryStage) {
         stage = primaryStage;
         stage.setTitle("Chat nội bộ công ty");
+                stage.setOnCloseRequest(e -> {
+            if (config.closeToTray && !exitingApp) {
+                e.consume();
+                try {
+                    ensureTrayIcon();
+                    stage.hide();
+                    showNativeNotification("Chat nội bộ", "Ứng dụng vẫn chạy dưới System Tray để nhận tin nhắn.");
+                } catch (Exception ex) {
+                    AppLog.warn("Không thể thu nhỏ xuống System Tray.", ex);
+                    stage.hide();
+                }
+            }
+        });
         showLogin();
     }
 
@@ -878,6 +896,11 @@ public class ChatApp extends Application {
         messageScroll.getStyleClass().add("message-scroll");
         messageScroll.setFitToWidth(true);
         messageScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        messageScroll.vvalueProperty().addListener((obs, old, value) -> {
+            if (value.doubleValue() < 0.04) {
+                loadOlderMessages();
+            }
+        });
         pane.setCenter(messageScroll);
         taskDrawer = new TaskDrawerPanel(this::hideTaskDrawer, this::updateTaskStatus,
                 (name, username) -> avatarNode(name, "task-avatar", username));
@@ -1113,10 +1136,10 @@ public class ChatApp extends Application {
             updateDirectPresenceHeader(currentConversation);
             manageGroupButton.setVisible(currentUser.canManageGroups() && "GROUP".equals(currentConversation.type));
             manageGroupButton.setManaged(manageGroupButton.isVisible());
-            pinConversationButton.setText(currentConversation.pinned ? "Bỏ ghim" : "Ghim");
             pinConversationButton.setText("");
             pinConversationButton.setTooltip(new Tooltip(currentConversation.pinned ? "Bỏ ghim hội thoại" : "Ghim hội thoại"));
             pinConversationButton.setDisable(false);
+
             String search = messageSearch == null ? "" : Texts.safe(messageSearch.getText());
             long conversationId = currentConversation.id;
             boolean conversationChanged = lastRenderedConversationId != -1 && lastRenderedConversationId != conversationId;
@@ -1124,19 +1147,18 @@ public class ChatApp extends Application {
                 animateMessagePaneOut();
             }
             boolean shouldScrollToBottom = forceScrollToBottom || forceRender || isNearBottom();
-            runDb(() -> chatService.listMessages(currentUser, conversationId, search), messages -> {
+            runDb(() -> chatService.listMessagesPage(currentUser, conversationId, null, 50, search), page -> {
                 if (currentConversation == null || currentConversation.id != conversationId) {
                     return;
                 }
-                currentMessages = messages;
+                currentMessages = page.messages;
+                nextBeforeMessageId = page.nextBeforeId;
+                hasMoreMessages = page.hasMore;
+                currentMessageSearch = search;
                 if (lastRenderedConversationId != conversationId) {
                     animatedMessageIds.clear();
                 }
-                if (currentMessages.isEmpty()) {
-                    messageBox.getChildren().setAll(emptyState("Chưa có tin nhắn", "Hãy gửi lời chào để bắt đầu cuộc trò chuyện."));
-                } else {
-                    messageBox.getChildren().setAll(currentMessages.stream().map(this::messageNode).collect(Collectors.toList()));
-                }
+                renderCurrentMessages();
                 lastRenderedConversationId = conversationId;
                 lastRenderedMessageKey = search;
                 if (conversationChanged) {
@@ -1152,6 +1174,47 @@ public class ChatApp extends Application {
         }
     }
 
+    private void renderCurrentMessages() {
+        if (currentMessages.isEmpty()) {
+            messageBox.getChildren().setAll(emptyState("Chưa có tin nhắn", "Hãy gửi lời chào để bắt đầu cuộc trò chuyện."));
+        } else {
+            messageBox.getChildren().setAll(currentMessages.stream().map(this::messageNode).collect(Collectors.toList()));
+        }
+    }
+
+    private void loadOlderMessages() {
+        if (currentConversation == null || loadingOlderMessages || !hasMoreMessages || nextBeforeMessageId == null) {
+            return;
+        }
+        String search = messageSearch == null ? "" : Texts.safe(messageSearch.getText());
+        if (!Objects.equals(search, currentMessageSearch)) {
+            return;
+        }
+        long conversationId = currentConversation.id;
+        Long beforeId = nextBeforeMessageId;
+        loadingOlderMessages = true;
+        double oldHeight = messageBox.getBoundsInLocal().getHeight();
+        runDb(() -> chatService.listMessagesPage(currentUser, conversationId, beforeId, 50, search), page -> {
+            loadingOlderMessages = false;
+            if (currentConversation == null || currentConversation.id != conversationId || page.messages.isEmpty()) {
+                return;
+            }
+            currentMessages.addAll(0, page.messages);
+            nextBeforeMessageId = page.nextBeforeId;
+            hasMoreMessages = page.hasMore;
+            List<Node> olderNodes = page.messages.stream().map(this::messageNode).collect(Collectors.toList());
+            messageBox.getChildren().addAll(0, olderNodes);
+            Platform.runLater(() -> {
+                double newHeight = messageBox.getBoundsInLocal().getHeight();
+                if (newHeight > 0) {
+                    messageScroll.setVvalue(Math.min(1.0, Math.max(0.0, (newHeight - oldHeight) / newHeight)));
+                }
+            });
+        }, e -> {
+            loadingOlderMessages = false;
+            showError("Không tải được tin nhắn cũ", e);
+        });
+    }
     private boolean isNearBottom() {
         return messageScroll == null || messageScroll.getVvalue() > 0.92;
     }
@@ -1166,10 +1229,13 @@ public class ChatApp extends Application {
             manageGroupButton.setManaged(false);
             messageBox.getChildren().setAll(emptyState("Chưa chọn hội thoại", "Chọn một cuộc trò chuyện bên trái hoặc tạo chat mới."));
             currentTasks = new ArrayList<>();
+            currentMessages = new ArrayList<>();
+            nextBeforeMessageId = null;
+            hasMoreMessages = false;
+            loadingOlderMessages = false;
             renderTasks();
         }
     }
-
     private Node messageNode(ChatMessage msg) {
         if (messageBubbleFactory == null) {
             messageBubbleFactory = createMessageBubbleFactory();
@@ -1259,13 +1325,13 @@ public class ChatApp extends Application {
             }
 
             @Override
-            public void openFile(File file) {
-                ChatApp.this.openFile(file);
+            public void openAttachment(Attachment attachment) {
+                ChatApp.this.openAttachment(attachment);
             }
 
             @Override
-            public void playAudioFile(File file, Button playButton) {
-                ChatApp.this.playAudioFile(file, playButton);
+            public void playAudioAttachment(Attachment attachment, Button playButton) {
+                ChatApp.this.playAudioAttachment(attachment, playButton);
             }
 
             @Override
@@ -1479,6 +1545,22 @@ public class ChatApp extends Application {
             refreshMessages(true);
             publishRealtime("MESSAGE_UPDATED", msg.conversationId);
         }, e -> showError("Không lưu được lựa chọn vote", e));
+    }
+
+    private void openAttachment(Attachment attachment) {
+        try {
+            openFile(storageService.openableFile(attachment));
+        } catch (Exception e) {
+            showError("Không mở được file đính kèm", e);
+        }
+    }
+
+    private void playAudioAttachment(Attachment attachment, Button playButton) {
+        try {
+            playAudioFile(storageService.openableFile(attachment), playButton);
+        } catch (Exception e) {
+            showError("Không phát được voice message", e);
+        }
     }
 
     private void playAudioFile(File file, Button playButton) {
@@ -2631,6 +2713,26 @@ public class ChatApp extends Application {
         g.dispose();
         trayIcon = new TrayIcon(image, "Chat nội bộ");
         trayIcon.setImageAutoSize(true);
+        java.awt.PopupMenu popupMenu = new java.awt.PopupMenu();
+        java.awt.MenuItem openItem = new java.awt.MenuItem("Mở ứng dụng");
+        openItem.addActionListener(e -> Platform.runLater(() -> {
+            if (stage != null) {
+                stage.show();
+                stage.toFront();
+            }
+        }));
+        java.awt.MenuItem exitItem = new java.awt.MenuItem("Thoát");
+        exitItem.addActionListener(e -> Platform.runLater(() -> {
+            exitingApp = true;
+            if (realtimeClient != null) {
+                realtimeClient.close();
+            }
+            removeTrayIcon();
+            Platform.exit();
+        }));
+        popupMenu.add(openItem);
+        popupMenu.add(exitItem);
+        trayIcon.setPopupMenu(popupMenu);
         trayIcon.addActionListener(e -> Platform.runLater(() -> {
             if (stage != null) {
                 stage.show();
@@ -3511,3 +3613,5 @@ public class ChatApp extends Application {
     private record VoteDraft(String question, List<String> options) {
     }
 }
+
+

@@ -2,17 +2,23 @@ package chatserver;
 
 import chatapp.AppConfig;
 import chatapp.AppLog;
+import chatapp.BackupService;
 import chatapp.Database;
 import chatapp.SchemaManager;
 import chatapp.SecurityService;
 import chatshared.JsonUtil;
 
 import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -43,15 +49,20 @@ public final class ChatServerApp {
                 server.stop(1000);
             } catch (Exception ignored) {
             }
+            server.shutdown();
             database.close();
         }));
     }
 
     private static final class RealtimeServer extends WebSocketServer {
+        private static final DateTimeFormatter BACKUP_FILE_TIME = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
         private final AppConfig config;
         private final Database db;
         private final SecurityService securityService;
+        private final BackupService backupService;
+        private final RealtimeBus bus;
         private final Set<WebSocket> sockets = ConcurrentHashMap.newKeySet();
+        private LocalDate lastAutoBackupDate;
         private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread thread = new Thread(r, "chat-birthday-bot");
             thread.setDaemon(true);
@@ -63,11 +74,22 @@ public final class ChatServerApp {
             this.config = config;
             this.db = db;
             this.securityService = new SecurityService(db, config);
+            this.backupService = new BackupService(db);
+            this.bus = createBus(config);
+            this.bus.start(this::broadcastLocal);
             scheduler.scheduleWithFixedDelay(this::sendBirthdayMessagesQuietly, 5, TimeUnit.HOURS.toSeconds(6), TimeUnit.SECONDS);
             scheduler.scheduleWithFixedDelay(this::processDueAutomationQuietly, 8, 15, TimeUnit.SECONDS);
             scheduler.scheduleWithFixedDelay(this::archiveOldMessagesQuietly, 1, 24, TimeUnit.HOURS);
+            scheduler.scheduleWithFixedDelay(this::autoBackupQuietly, 30, 60, TimeUnit.SECONDS);
         }
 
+        private RealtimeBus createBus(AppConfig config) {
+            if (!config.redisEnabled) {
+                return new InMemoryRealtimeBus();
+            }
+            AppLog.info("Redis realtime bridge bật tại " + config.redisHost + ":" + config.redisPort + ", channel=" + config.redisChannel);
+            return new RedisRealtimeBus(config);
+        }
         @Override
         public void onOpen(WebSocket conn, ClientHandshake handshake) {
             sockets.add(conn);
@@ -76,7 +98,11 @@ public final class ChatServerApp {
 
         @Override
         public void onClose(WebSocket conn, int code, String reason, boolean remote) {
+            Object username = conn == null ? null : conn.getAttachment();
             sockets.remove(conn);
+            if (username != null) {
+                bus.markOffline(String.valueOf(username));
+            }
         }
 
         @Override
@@ -92,6 +118,7 @@ public final class ChatServerApp {
                         return;
                     }
                     conn.setAttachment(username);
+                    bus.markOnline(username);
                     conn.send(JsonUtil.stringify(Map.of("type", "AUTH_OK", "at", System.currentTimeMillis())));
                 } catch (Exception e) {
                     conn.send(JsonUtil.stringify(Map.of("type", "AUTH_FAILED", "at", System.currentTimeMillis())));
@@ -108,7 +135,8 @@ public final class ChatServerApp {
             } catch (Exception e) {
                 AppLog.warn("Không cập nhật được last seen.", e);
             }
-            broadcast(message);
+            bus.markOnline(String.valueOf(conn.getAttachment()));
+            bus.publish(message);
         }
 
         @Override
@@ -121,13 +149,17 @@ public final class ChatServerApp {
             setConnectionLostTimeout(30);
         }
 
-        @Override
-        public void broadcast(String text) {
+        private void broadcastLocal(String text) {
             for (WebSocket socket : sockets) {
                 if (socket != null && socket.isOpen()) {
                     socket.send(text);
                 }
             }
+        }
+
+        void shutdown() {
+            scheduler.shutdownNow();
+            bus.close();
         }
 
         private void sendBirthdayMessagesQuietly() {
@@ -155,6 +187,67 @@ public final class ChatServerApp {
             }
         }
 
+        private void autoBackupQuietly() {
+            if (!config.autoBackupEnabled) {
+                return;
+            }
+            try {
+                LocalTime target = LocalTime.parse(config.autoBackupTime);
+                LocalDateTime now = LocalDateTime.now();
+                if (lastAutoBackupDate != null && lastAutoBackupDate.equals(now.toLocalDate())) {
+                    return;
+                }
+                if (now.toLocalTime().isBefore(target)) {
+                    return;
+                }
+                Files.createDirectories(config.autoBackupDir);
+                Path backup = config.autoBackupDir.resolve("chat-auto-" + now.format(BACKUP_FILE_TIME) + ".zip");
+                backupService.exportSystemBackup(backup);
+                lastAutoBackupDate = now.toLocalDate();
+                cleanupOldBackups();
+                audit("system_bot", "BACKUP_AUTO_CREATED", "BACKUP", backup.getFileName().toString(), backup.toAbsolutePath().toString());
+                AppLog.info("Đã tạo backup tự động: " + backup.toAbsolutePath());
+            } catch (Exception e) {
+                AppLog.warn("Backup tự động lỗi.", e);
+            }
+        }
+
+        private void audit(String actor, String action, String targetType, String targetId, String detail) {
+            try (Connection c = db.getConnection();
+                 PreparedStatement ps = c.prepareStatement(
+                         "INSERT INTO chat_audit_logs (actor_username, action, target_type, target_id, detail, created_at) VALUES (?, ?, ?, ?, ?, NOW())")) {
+                ps.setString(1, actor);
+                ps.setString(2, action);
+                ps.setString(3, targetType);
+                ps.setString(4, targetId);
+                ps.setString(5, detail);
+                ps.executeUpdate();
+            } catch (Exception e) {
+                AppLog.warn("Không ghi được audit backup tự động.", e);
+            }
+        }
+
+        private void cleanupOldBackups() {
+            try (var stream = Files.list(config.autoBackupDir)) {
+                LocalDateTime cutoff = LocalDateTime.now().minusDays(config.autoBackupKeepDays);
+                stream.filter(path -> path.getFileName().toString().startsWith("chat-auto-") && path.getFileName().toString().endsWith(".zip"))
+                        .filter(path -> {
+                            try {
+                                return Files.getLastModifiedTime(path).toInstant().isBefore(cutoff.atZone(java.time.ZoneId.systemDefault()).toInstant());
+                            } catch (Exception ignored) {
+                                return false;
+                            }
+                        })
+                        .forEach(path -> {
+                            try {
+                                Files.deleteIfExists(path);
+                            } catch (Exception ignored) {
+                            }
+                        });
+            } catch (Exception e) {
+                AppLog.warn("Không dọn được backup cũ.", e);
+            }
+        }
         private void archiveOldMessages() throws Exception {
             int days = Math.max(30, config.retentionDays);
             try (Connection c = db.getConnection()) {
@@ -209,7 +302,7 @@ public final class ChatServerApp {
                 }
             }
             for (PushEvent event : events) {
-                broadcast(JsonUtil.stringify(JsonUtil.event(event.type, event.conversationId, event.actor)));
+                bus.publish(JsonUtil.stringify(JsonUtil.event(event.type, event.conversationId, event.actor)));
             }
         }
 
@@ -245,7 +338,7 @@ public final class ChatServerApp {
                 }
             }
             for (PushEvent event : events) {
-                broadcast(JsonUtil.stringify(JsonUtil.event(event.type, event.conversationId, event.actor)));
+                bus.publish(JsonUtil.stringify(JsonUtil.event(event.type, event.conversationId, event.actor)));
             }
         }
 
@@ -269,8 +362,8 @@ public final class ChatServerApp {
                             "🎂 Chúc mừng sinh nhật " + name + "! Chúc bạn một ngày thật vui và nhiều năng lượng.",
                             "BIRTHDAY_CARD",
                             "{\"employee\":\"" + login + "\"}");
-                    broadcast(JsonUtil.stringify(JsonUtil.event("MESSAGE_CREATED", conversationId, "system_bot")));
-                    broadcast(JsonUtil.stringify(Map.of("type", "BOT_BIRTHDAY", "conversationId", conversationId, "messageId", messageId)));
+                    bus.publish(JsonUtil.stringify(JsonUtil.event("MESSAGE_CREATED", conversationId, "system_bot")));
+                    bus.publish(JsonUtil.stringify(Map.of("type", "BOT_BIRTHDAY", "conversationId", conversationId, "messageId", messageId)));
                 }
             }
         }

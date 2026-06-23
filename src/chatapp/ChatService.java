@@ -9,6 +9,7 @@ import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -718,26 +719,37 @@ final class ChatService {
     }
 
     List<ChatMessage> listMessages(CurrentUser user, long conversationId, String search) throws Exception {
+        return listMessagesPage(user, conversationId, null, 50, search).messages;
+    }
+
+    MessagePage listMessagesPage(CurrentUser user, long conversationId, Long beforeMessageId, int limit, String search) throws Exception {
         if (!isMember(conversationId, user.username)) {
             throw new IllegalArgumentException("Bạn không thuộc hội thoại này.");
         }
+        int pageSize = Math.max(1, Math.min(limit, 100));
         List<ChatMessage> messages = new ArrayList<>();
         String filter = search == null || search.isBlank() ? "" : " AND (m.body LIKE ? OR a.original_name LIKE ?)";
+        String cursor = beforeMessageId == null ? "" : " AND m.id < ?";
         String sql = "SELECT DISTINCT m.*, COALESCE(u.full_name, e.name, m.sender_username) sender_name, r.body reply_body " +
                 "FROM chat_messages m " +
                 "LEFT JOIN users u ON u.username = m.sender_username " +
                 "LEFT JOIN employees e ON e.login_username = m.sender_username " +
                 "LEFT JOIN chat_messages r ON r.id = m.reply_to_id " +
                 "LEFT JOIN chat_attachments a ON a.message_id = m.id " +
-                "WHERE m.conversation_id = ? AND m.deleted_at IS NULL" + filter +
-                " ORDER BY m.pinned DESC, m.id ASC LIMIT 500";
+                "WHERE m.conversation_id = ? AND m.deleted_at IS NULL" + cursor + filter +
+                " ORDER BY m.id DESC LIMIT ?";
         try (Connection c = db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setLong(1, conversationId);
+            int idx = 1;
+            ps.setLong(idx++, conversationId);
+            if (beforeMessageId != null) {
+                ps.setLong(idx++, beforeMessageId);
+            }
             if (!filter.isBlank()) {
                 String like = "%" + search.trim() + "%";
-                ps.setString(2, like);
-                ps.setString(3, like);
+                ps.setString(idx++, like);
+                ps.setString(idx++, like);
             }
+            ps.setInt(idx, pageSize + 1);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     ChatMessage msg = mapMessage(rs);
@@ -748,10 +760,15 @@ final class ChatService {
                 }
             }
         }
+        boolean hasMore = messages.size() > pageSize;
+        if (hasMore) {
+            messages.remove(messages.size() - 1);
+        }
+        Collections.reverse(messages);
+        Long nextBeforeId = messages.isEmpty() ? beforeMessageId : messages.get(0).id;
         markRead(user, conversationId);
-        return messages;
+        return new MessagePage(messages, nextBeforeId, hasMore);
     }
-
     List<ChatMessage> searchMessages(CurrentUser user, long conversationId, MessageSearchCriteria criteria) throws Exception {
         if (!isMember(conversationId, user.username)) {
             throw new IllegalArgumentException("Bạn không thuộc hội thoại này.");
@@ -913,7 +930,7 @@ final class ChatService {
                         FileStorageService.StoredFile stored = storage.store(file, user, conversationId);
                         storedFiles.add(stored);
                         try (PreparedStatement ps = c.prepareStatement(
-                                "INSERT INTO chat_attachments (message_id, original_name, stored_name, file_type, mime_type, file_size, shared_path) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+                                "INSERT INTO chat_attachments (message_id, original_name, stored_name, file_type, mime_type, file_size, shared_path, encrypted, crypto_iv) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
                             ps.setLong(1, messageId);
                             ps.setString(2, stored.originalName);
                             ps.setString(3, stored.storedName);
@@ -921,6 +938,8 @@ final class ChatService {
                             ps.setString(5, stored.mimeType);
                             ps.setLong(6, stored.fileSize);
                             ps.setString(7, stored.sharedPath);
+                            ps.setBoolean(8, stored.encrypted);
+                            ps.setString(9, stored.cryptoIv);
                             ps.executeUpdate();
                         }
                     }
@@ -1296,10 +1315,13 @@ final class ChatService {
                     a.id = rs.getLong("id");
                     a.messageId = messageId;
                     a.originalName = rs.getString("original_name");
+                    a.storedName = rs.getString("stored_name");
                     a.fileType = rs.getString("file_type");
                     a.mimeType = rs.getString("mime_type");
                     a.fileSize = rs.getLong("file_size");
                     a.sharedPath = rs.getString("shared_path");
+                    a.encrypted = rs.getBoolean("encrypted");
+                    a.cryptoIv = rs.getString("crypto_iv");
                     list.add(a);
                 }
             }
@@ -1768,3 +1790,4 @@ final class ChatService {
         return value == null ? null : value.toLocalDateTime();
     }
 }
+

@@ -1,5 +1,0 @@
-[2026-06-23 20:54:50] WARN CHAT_NOI_BO - auth.token.secret v?n là giá tr? m?c ??nh. Hãy ??i secret tr??c khi dùng th?t trong m?ng công ty.
-[main] INFO com.zaxxer.hikari.HikariDataSource - CHAT_NOI_BO_POOL - Starting...
-[main] INFO com.zaxxer.hikari.HikariDataSource - CHAT_NOI_BO_POOL - Start completed.
-[2026-06-23 20:55:20] WARN CHAT_NOI_BO - Không kh?i t?o ???c schema lúc server m?. Server v?n ch?y và bot jobs s? th? l?i sau. | SQLTransientConnectionException: CHAT_NOI_BO_POOL - Connection is not available, request timed out after 30000ms (total=0, active=0, idle=0, waiting=0)
-[2026-06-23 20:55:20] INFO CHAT_NOI_BO - Realtime server ?ang nghe t?i ws://0.0.0.0:8787

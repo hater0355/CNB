@@ -1,1 +1,3 @@
-Compiled CHAT_NOI_BO successfully.
+2026-06-24 05:33:25 WARN  CHAT_NOI_BO - auth.token.secret vẫn là giá trị mặc định. Hãy đổi secret trước khi dùng thật trong mạng công ty.
+2026-06-24 05:33:25 INFO  CHAT_NOI_BO - CHAT_NOI_BO_POOL - Starting...
+2026-06-24 05:33:25 INFO  CHAT_NOI_BO - CHAT_NOI_BO_POOL - Start completed.
